@@ -399,6 +399,7 @@
         {
             var created = await Client.CreateStudioProjectAsync("Yeni bileşen");
             _project = new StudioOpenDto(created, [], []);
+            _projects = await Client.ListStudioProjectsAsync(); // şerit hemen göstersin (üretimin bitmesini beklemeden)
         }
         var image = _pendingImage;
         _pendingImage = null;
@@ -444,6 +445,7 @@
                     case "started":
                         _knownPattern = e.KnownPattern ?? true;
                         reply.Note = e.Recipes is { Count: > 0 } r ? "Tarif defterinden: " + string.Join(", ", r) : null;
+                        _projects = await Client.ListStudioProjectsAsync(); // Host konu başlığını "started"tan önce koyar
                         break;
                     case "chunk":
                         raw.Append(e.Text);

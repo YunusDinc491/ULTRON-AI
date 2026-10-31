@@ -258,7 +258,7 @@ public sealed partial class LessonService(
         }
         await stream.DisposeAsync();
 
-        var final = AnswerCleanup.Tidy(answer.ToString());
+        var final = AnswerCleanup.DisplayFormulas(AnswerCleanup.Tidy(answer.ToString()));
         if (final.Length == 0)
         {
             yield return new LessonFailed(error ?? "Cevap üretilemedi.");
@@ -484,7 +484,7 @@ public sealed partial class LessonService(
         var text = new StringBuilder();
         await foreach (var part in chat.StreamAsync([new ChatMessage(Role.System, prompt), new ChatMessage(Role.User, (kind == MaterialKinds.Formulas ? "Formül kağıdı: " : "Özet: ") + topic)], cancellationToken))
             text.Append(part);
-        var content = AnswerCleanup.Tidy(text.ToString());
+        var content = AnswerCleanup.DisplayFormulas(AnswerCleanup.Tidy(text.ToString()));
         if (content.Length == 0)
             return null;
         var title = (kind == MaterialKinds.Formulas ? "Formül kağıdı · " : "Özet · ") + Clip(topic, 80);

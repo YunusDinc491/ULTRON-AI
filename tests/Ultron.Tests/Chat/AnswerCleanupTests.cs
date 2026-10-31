@@ -26,6 +26,22 @@ public class AnswerCleanupTests
     public void LaTeX_duz_metne_cevrilir(string input, string expected) =>
         Assert.Equal(expected, AnswerCleanup.PlainMath(input));
 
+    [Theory]
+    [InlineData(@"Boltzmann formülü $S = k \ln W$ ile verilir.", "Boltzmann formülü\n\n$$S = k \\ln W$$\n\nile verilir.")]
+    [InlineData("Formül:\n$\\eta = 1 - T_L/T_H$.\nBurada", "Formül:\n\n$$\\eta = 1 - T_L/T_H$$\n\nBurada")]
+    [InlineData("- $Q = mc\\Delta T$", "$$Q = mc\\Delta T$$")] // maddenin tamamı formül
+    public void Denklem_blok_formule_cevrilir(string input, string expected) =>
+        Assert.Equal(expected, AnswerCleanup.DisplayFormulas(input));
+
+    [Theory]
+    [InlineData("Yüksek sıcaklık $T_H$ ile gösterilir.")]           // tek sembol
+    [InlineData("- $W$ işi ve $Q = W + U$ ısıyı verir")]            // madde içi: bölünmez
+    [InlineData("Zaten blok:\n\n$$S = k \\ln W$$")]                // zaten blok
+    [InlineData("Bilet 5$ ile 10$ arası.")]                         // para birimi
+    [InlineData("```\nx = $a = b$\n```")]                           // kod bloğu
+    public void Formul_dokunulmaz(string input) =>
+        Assert.Equal(input, AnswerCleanup.DisplayFormulas(input));
+
     [Fact]
     public void Coklu_kaynak_numaralari_ayrilir() =>
         Assert.Equal("Şöyle [1][2]. Böyle [3].", Ultron.Core.Documents.DocumentCitations.SplitLists("Şöyle [1, 2]. Böyle [3]."));
