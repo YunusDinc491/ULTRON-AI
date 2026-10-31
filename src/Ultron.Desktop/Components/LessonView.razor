@@ -1,0 +1,958 @@
+@* Ders arayüzü (Faz 17, kullanıcının kararları): 3 sütun — solda dersler · ortada sohbet · sağda sekmeli çalışma paneli
+   (Kaynaklar, Özet/Formül kağıdı, Quiz, Plan, Notlar). Her dersin ayrı oturumu ve kendi notları var; sorular önce o dersin
+   kaynaklarından cevaplanır, sayısal problemde sayıları Ultron'un hesaplayıcısı bulur. Emin olmadığında "Claude'a sorayım mı?"
+   kartı çıkar. Ses yok (Ders modunda ses modelleri ekran kartından boşaltılır). Görünüm İş arayüzüyle aynı aile (koyu). *@
+@implements IAsyncDisposable
+@using System.IO
+@inject UltronClient Client
+@inject IJSRuntime JS
+
+<div class="studio lesson @(_entered ? "in" : "")">
+    <header class="st-top">
+        <div class="st-brand">
+            <span class="ls-crumb">@(_open?.Session.Name ?? "Ders")</span>
+        </div>
+        <div class="st-right">
+            <button class="st-ghost @(_workOpen ? "on" : "")" title="Kaynaklar, özet, quiz, plan ve notlar" @onclick="() => _workOpen = !_workOpen">Kaynaklar ve araçlar</button>
+        </div>
+    </header>
+
+    <div class="ls-body">
+        @* ---- Sol: dersler ---- *@
+        <aside class="ls-courses" aria-label="Dersler">
+            <div class="ls-col-head">Dersler</div>
+            @foreach (var s in _list?.Sessions ?? [])
+            {
+                <button class="ls-course @(s.Id == _open?.Session.Id ? "on" : "")" @onclick="() => OpenAsync(s.Id)">
+                    <span class="ls-course-name">@s.Name</span>
+                    @if (ExamLabel(s) is { } exam)
+                    {
+                        <span class="ls-course-exam">@exam</span>
+                    }
+                </button>
+            }
+            <div class="ls-new">
+                <input placeholder="Yeni ders (ör. Termodinamik II)" @bind="_newName" @bind:event="oninput"
+                       @onkeydown="@(e => e.Key == "Enter" ? CreateAsync(_newName, null) : Task.CompletedTask)" />
+                <button class="st-ghost" disabled="@string.IsNullOrWhiteSpace(_newName)" @onclick="() => CreateAsync(_newName, null)">+</button>
+            </div>
+            @if (_list is { Courses.Count: > 0 } list)
+            {
+                <div class="ls-col-sub">Ders programından</div>
+                @foreach (var c in list.Courses)
+                {
+                    <button class="ls-suggest" title="Bu ders için oturum aç (ders programına bağlı)" @onclick="() => CreateAsync(c, c)">+ @c</button>
+                }
+            }
+            <div class="ls-voice">Ses: @(_list?.VoiceReleased == true ? "kapalı, ekran kartı boşaltıldı" : "kapalı")</div>
+        </aside>
+
+        @* ---- Orta: sohbet ---- *@
+        <section class="st-chat ls-chat" aria-label="Ders sohbeti">
+            @if (_open is { } open)
+            {
+                <div class="ls-session-head">
+                    <div>
+                        <div class="ls-session-name">@open.Session.Name</div>
+                        <div class="muted ls-session-meta">@open.Sources.Count kaynak · @open.Notes.Count not@(open.Session.Course is { } course ? " · programdaki ders: " + course : "")</div>
+                    </div>
+                    <button class="st-ghost @(_settingsOpen ? "on" : "")" title="Ders ayarları: ad, talimat, silme" @onclick="ToggleSettings">Ayarlar</button>
+                </div>
+                @if (_settingsOpen)
+                {
+                    <div class="ls-settings">
+                        <label>Ad <input @bind="_editName" /></label>
+                        <label>Bu ders için talimat <textarea rows="3" placeholder="ör. Hoca SI birim kullanıyor; formülleri Çengel'in notasyonuyla yaz; kısa anlat." @bind="_editInstructions"></textarea></label>
+                        <div class="st-card-actions">
+                            @if (_confirmDelete)
+                            {
+                                <span class="st-confirm">Ders, kaynakları ve notlarıyla silinsin mi?
+                                    <button class="st-ghost danger" @onclick="DeleteAsync">Sil</button>
+                                    <button class="st-ghost" @onclick="() => _confirmDelete = false">Vazgeç</button>
+                                </span>
+                            }
+                            else
+                            {
+                                <button class="st-ghost danger" @onclick="() => _confirmDelete = true">Dersi sil</button>
+                            }
+                            <button class="st-primary" @onclick="SaveSettingsAsync">Kaydet</button>
+                        </div>
+                    </div>
+                }
+            }
+            <div class="st-messages" @ref="_messagesEl">
+                @if (_open is null)
+                {
+                    <div class="st-empty">
+                        <h2>Hangi derse çalışıyoruz?</h2>
+                        <p>Soldan bir ders seç ya da yeni ders aç. Sonra sağdaki Kaynaklar sekmesine PDF, Word, slayt, defter fotoğrafı ya da geçmiş sınav soruları ekle; sorularını önce onlardan cevaplarım.</p>
+                    </div>
+                }
+                else if (_messages.Count == 0)
+                {
+                    <div class="st-empty">
+                        <h2>@_open.Session.Name</h2>
+                        <p>Konu sor, problem yapıştır ya da sağdan özet, formül kağıdı, quiz ve sınav planı iste. "Not al: …" dersen sadece bu ders için aklımda tutarım.</p>
+                        <div class="st-examples">
+                            @foreach (var example in Examples)
+                            {
+                                <button @onclick="() => _draft = example">@example</button>
+                            }
+                        </div>
+                    </div>
+                }
+                @foreach (var m in _messages)
+                {
+                    <div class="st-msg @(m.FromUser ? "user" : "bot")">
+                        @if (m.ImagePreview is not null)
+                        {
+                            <img class="st-msg-img" src="@m.ImagePreview" alt="Eklenen görsel" />
+                        }
+                        @if (m.FromUser)
+                        {
+                            <div class="st-msg-text">@m.Text</div>
+                        }
+                        else
+                        {
+                            @if (m.Author == "claude")
+                            {
+                                <div class="ls-author">Claude Code</div>
+                            }
+                            <div class="md ls-md">@((MarkupString)MarkdownRenderer.ToHtml(m.Text, withCaret: m.Streaming))</div>
+                        }
+                        @if (m.Sources.Count > 0)
+                        {
+                            <div class="ls-sources">@foreach (var s in m.Sources) { <span>@s</span> }</div>
+                        }
+                        @if (m.Unsure && m.Id is { } mid && _claudeAsked != mid)
+                        {
+                            <div class="st-card">
+                                <div class="st-card-title">@(m.Author == "hesap" ? "Bir adımı hesaplayamadım." : "Bunu dersin kaynaklarında bulamadım.") Claude'a sorayım mı?</div>
+                                <div class="st-card-text">Claude Code dersin kaynak dosyalarına bakıp cevaplar (aboneliğini kullanır); cevabı bu dersin notlarına da geçer, bir dahakine ben bilirim.</div>
+                                <div class="st-card-actions">
+                                    <button class="st-ghost" @onclick="() => _claudeAsked = mid">Gerek yok</button>
+                                    <button class="st-primary" @onclick="() => AskClaudeAsync(mid)">Claude'a sor</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                @if (_status is not null)
+                {
+                    <div class="st-status">@_status</div>
+                }
+            </div>
+
+            <div class="st-composer">
+                @if (_pendingImage is not null)
+                {
+                    <div class="st-pending">
+                        <img src="@_pendingImage.Preview" alt="" />
+                        <span>Soru görseli ekli · @_pendingImage.Name</span>
+                        <button title="Görseli kaldır" @onclick="() => _pendingImage = null">✕</button>
+                    </div>
+                }
+                <div class="st-input">
+                    <textarea @ref="_promptEl" rows="1" placeholder="@(_open is null ? "Önce bir ders seç" : "Soru sor ya da problemi yaz… (görsel yapıştırabilirsin)")"
+                              @bind="_draft" @bind:event="oninput" disabled="@(_busy || _open is null)"></textarea>
+                    <label class="st-attach" title="Soru görseli ekle">
+                        <InputFile OnChange="OnQuestionImageAsync" accept="image/*" />
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M21 12.5 12.6 21a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6L15 8.2" /></svg>
+                    </label>
+                    <button class="st-send @(_busy ? "stop" : "")" @ref="_sendEl" title="@(_busy ? "Durdur" : "Gönder (Enter)")"
+                            disabled="@(_open is null || (!_busy && string.IsNullOrWhiteSpace(_draft) && _pendingImage is null))" @onclick="SendOrStopAsync">@(_busy ? "■" : "↑")</button>
+                </div>
+            </div>
+        </section>
+
+        @* ---- Sağ: çalışma paneli (2026-10-31: sağdan açılan pencere, varsayılan kapalı) ---- *@
+        <section class="ls-work @(_workOpen ? "open" : "")" aria-label="Çalışma paneli" aria-hidden="@(!_workOpen)">
+            <div class="st-tabs">
+                <button class="ls-work-close" title="Kapat" @onclick="() => _workOpen = false">✕</button>
+                <div class="st-tablist" role="tablist">
+                    @foreach (var (tab, label) in Tabs)
+                    {
+                        <button role="tab" aria-selected="@(_tab == tab)" class="@(_tab == tab ? "on" : "")" @onclick="() => SelectTab(tab)">@label</button>
+                    }
+                </div>
+            </div>
+            <div class="ls-pane">
+                @if (_open is null)
+                {
+                    <div class="st-placeholder static">Ders seçince burada kaynaklar, özetler, quiz ve plan görünür.</div>
+                }
+                else if (_tab == Tab.Sources)
+                {
+                    <div class="ls-row">
+                        <label class="st-ghost ls-file" title="PDF, Word, PowerPoint, metin">
+                            <InputFile OnChange="OnSourceFilesAsync" multiple accept=".pdf,.docx,.pptx,.txt,.md" />
+                            + Dosya
+                        </label>
+                        <label class="st-ghost ls-file" title="Defter ya da tahta fotoğrafı: önce metne çevrilir, düzeltip onaylarsın">
+                            <InputFile OnChange="OnPhotoAsync" accept="image/*" />
+                            + Fotoğraf
+                        </label>
+                        <label class="ls-check"><input type="checkbox" @bind="_examSource" /> geçmiş sınav</label>
+                    </div>
+                    @if (_photoBusy)
+                    {
+                        <div class="st-status">Fotoğraf okunuyor…</div>
+                    }
+                    @if (_photoDraft is not null)
+                    {
+                        <div class="ls-draft">
+                            <div class="ls-draft-head">
+                                @if (_photoPreview is not null)
+                                {
+                                    <img src="@_photoPreview" alt="Fotoğraf" />
+                                }
+                                <div class="muted">Fotoğraftan okuduğum metin. Hatalı yerleri düzelt; onaylayınca bu dersin kaynağı olur.</div>
+                            </div>
+                            <input placeholder="Başlık (ör. 3. hafta tahta notu)" @bind="_photoTitle" />
+                            <textarea rows="10" @bind="_photoDraft"></textarea>
+                            <div class="st-card-actions">
+                                <button class="st-ghost" @onclick="() => { _photoDraft = null; _photoPreview = null; }">Vazgeç</button>
+                                <button class="st-primary" @onclick="ApprovePhotoAsync">Kaynak olarak kaydet</button>
+                            </div>
+                        </div>
+                    }
+                    @if (_notice is not null)
+                    {
+                        <div class="st-muted-line">@_notice</div>
+                    }
+                    @if (_open.Sources.Count == 0)
+                    {
+                        <div class="muted ls-help">Henüz kaynak yok. Ders notları, slaytlar, kitap bölümleri ve geçmiş sınav soruları ekle (geçmiş sınavı işaretlersen quiz onların üslubunu örnek alır).</div>
+                    }
+                    @foreach (var d in _open.Sources)
+                    {
+                        <div class="st-rule">
+                            <span>@d.FileName <em>@KindLabel(d.Kind)@(d.PageCount > 0 ? $" · {d.PageCount} s." : "")</em></span>
+                            <button class="st-ghost" title="Kaynağı sil" @onclick="() => RemoveSourceAsync(d.Id)">Sil</button>
+                        </div>
+                    }
+                }
+                else if (_tab == Tab.Summary)
+                {
+                    <div class="ls-row">
+                        <input placeholder="Konu (boşsa bütün ders)" @bind="_topic" />
+                        <button class="st-ghost" disabled="@_working" @onclick='() => MakeMaterialAsync("ozet")'>Özet</button>
+                        <button class="st-ghost" disabled="@_working" @onclick='() => MakeMaterialAsync("formul")'>Formül kağıdı</button>
+                    </div>
+                    @MaterialList(m => m.Kind is "ozet" or "formul")
+                    @MaterialView()
+                }
+                else if (_tab == Tab.Quiz)
+                {
+                    <div class="ls-row">
+                        <input placeholder="Konu (boşsa zayıf konular + ders)" @bind="_topic" />
+                        <select @bind="_quizCount" title="Soru sayısı">
+                            <option value="4">4</option>
+                            <option value="6">6</option>
+                            <option value="8">8</option>
+                        </select>
+                        <button class="st-ghost" disabled="@_working" @onclick="MakeQuizAsync">Quiz hazırla</button>
+                    </div>
+                    @if (_working)
+                    {
+                        <div class="st-status">Hazırlanıyor…</div>
+                    }
+                    @if (_quiz is { Quiz: { } questions } quiz)
+                    {
+                        <div class="ls-quiz">
+                            <div class="ls-quiz-title">@quiz.Title</div>
+                            @for (var i = 0; i < questions.Count; i++)
+                            {
+                                var index = i;
+                                var q = questions[index];
+                                var result = _grade?.Results.FirstOrDefault(r => r.Index == index);
+                                <div class="ls-q @(result is null ? "" : result.Correct ? "ok" : "bad")">
+                                    <div class="ls-q-text"><b>@(index + 1).</b> <span class="md">@((MarkupString)MarkdownRenderer.ToHtml(q.Question))</span></div>
+                                    @if (q.Type == "coktan")
+                                    {
+                                        @for (var c = 0; c < q.Choices.Count; c++)
+                                        {
+                                            var letter = ((char)('A' + c)).ToString();
+                                            <label class="ls-choice">
+                                                <input type="radio" name="q@(quiz.Id)-@index" checked="@(_answers[index] == letter)" disabled="@(_grade is not null)" @onchange="() => _answers[index] = letter" />
+                                                <b>@letter)</b> <span class="md">@((MarkupString)MarkdownRenderer.ToHtml(q.Choices[c]))</span>
+                                            </label>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <input class="ls-answer" placeholder="@(q.Type == "sayisal" ? "Sayı" + (q.Unit is null ? "" : $" ({q.Unit})") : "Kısa cevap")"
+                                               value="@_answers[index]" disabled="@(_grade is not null)" @oninput="e => _answers[index] = e.Value?.ToString() ?? string.Empty" />
+                                    }
+                                    @if (result is not null)
+                                    {
+                                        <div class="ls-feedback">@(result.Correct ? "✓ " : "✗ ")<span class="md">@((MarkupString)MarkdownRenderer.ToHtml(result.Feedback))</span></div>
+                                    }
+                                    <div class="ls-q-topic">@q.Topic</div>
+                                </div>
+                            }
+                            @if (_grade is { } grade)
+                            {
+                                <div class="ls-score">Puan: @grade.Correct / @grade.Total@(grade.WeakTopics.Count > 0 ? " · zayıf konular: " + string.Join(", ", grade.WeakTopics) : "")</div>
+                                <button class="st-ghost" @onclick="RetryQuiz">Tekrar çöz</button>
+                            }
+                            else
+                            {
+                                <button class="st-primary" disabled="@_working" @onclick="GradeAsync">Puanla</button>
+                            }
+                        </div>
+                    }
+                    @if (_open.Topics.Count > 0)
+                    {
+                        <h4 class="ls-h">Konular <span class="muted">· doğru / yanlış</span></h4>
+                        @foreach (var t in _open.Topics)
+                        {
+                            <div class="st-rule"><span>@t.Topic <em>@t.Hits ✓ · @t.Misses ✗@(t.IsWeak ? " · zayıf" : "")</em></span></div>
+                        }
+                    }
+                    @MaterialList(m => m.Kind == "quiz")
+                }
+                else if (_tab == Tab.Plan)
+                {
+                    <div class="ls-plan-form">
+                        <input placeholder="Sınav (ör. Vize)" @bind="_examName" />
+                        <input type="date" @bind="_examDate" />
+                        <label class="ls-check"><input type="checkbox" @bind="_planReminders" /> her akşam hatırlat</label>
+                        <button class="st-ghost" disabled="@_working" @onclick="MakePlanAsync">Plan yap</button>
+                    </div>
+                    @if (_working)
+                    {
+                        <div class="st-status">Plan hazırlanıyor…</div>
+                    }
+                    @if (_notice is not null)
+                    {
+                        <div class="st-muted-line">@_notice</div>
+                    }
+                    @if (_open.Materials.FirstOrDefault(m => m.Kind == "plan") is { } plan)
+                    {
+                        <div class="md ls-md ls-doc">@((MarkupString)MarkdownRenderer.ToHtml(plan.Content))</div>
+                    }
+                    else
+                    {
+                        <div class="muted ls-help">Sınav tarihini gir; kalan günlere konuları dağıtırım (quizde zayıf çıkan konular önde), istersen her akşam hatırlatırım.</div>
+                    }
+                }
+                else if (_tab == Tab.Notes)
+                {
+                    <div class="muted ls-help">Sadece bu derste kullanılır, ana hafızaya yazılmaz: hocanın notasyonu, sınav kapsamı, Claude'un ve gece denetiminin düzeltmeleri.</div>
+                    <div class="st-inline">
+                        <input placeholder="Yeni not (ör. Sınavda ideal gaz tabloları verilecek)" @bind="_newNote" @bind:event="oninput" />
+                        <button class="st-ghost" disabled="@string.IsNullOrWhiteSpace(_newNote)" @onclick="AddNoteAsync">Ekle</button>
+                    </div>
+                    @foreach (var n in _open.Notes.AsEnumerable().Reverse())
+                    {
+                        <div class="st-rule">
+                            <span>@n.Text <em>@n.Source</em></span>
+                            <button class="st-ghost" title="Notu kaldır" @onclick="() => RemoveNoteAsync(n.Id)">Geri al</button>
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+    </div>
+
+    @* Sürükle-bırak (2026-10-31): görsel → soruya, belge → bu dersin kaynaklarına (katmanı ultron.js açar). *@
+    <div class="drop-zone">
+        <div class="drop-card">
+            <div class="drop-title">DOSYA EKLE</div>
+            <div class="muted">Görsel → soruna eklenir · Belge (PDF, Word, PowerPoint, .txt, .md) → bu dersin kaynaklarına</div>
+        </div>
+        <InputFile OnChange="OnDroppedAsync" multiple accept=".pdf,.docx,.pptx,.txt,.md,.png,.jpg,.jpeg,.webp,.bmp,.gif" />
+    </div>
+</div>
+
+@code {
+
+
+    private enum Tab { Sources, Summary, Quiz, Plan, Notes }
+
+    private static readonly (Tab, string)[] Tabs = [(Tab.Sources, "Kaynaklar"), (Tab.Summary, "Özet/Formül"), (Tab.Quiz, "Quiz"), (Tab.Plan, "Plan"), (Tab.Notes, "Notlar")];
+
+    private static readonly string[] Examples =
+    [
+        "Entropi nedir, kısaca örnekle anlat",
+        "Hava 300 K'den sıkıştırma oranı 8 ile izantropik sıkıştırılıyor (k=1,4). Son sıcaklığı hesapla.",
+        "Carnot çevrimini adım adım anlat",
+    ];
+
+    private sealed class Msg
+    {
+        public long? Id { get; set; }
+        public bool FromUser { get; init; }
+        public string Text { get; set; } = "";
+        public string Author { get; set; } = "ultron";
+        public bool Unsure { get; set; }
+        public bool Streaming { get; set; }
+        public IReadOnlyList<string> Sources { get; set; } = [];
+        public string? ImagePreview { get; init; }
+
+        public static Msg From(LessonMessageDto m) =>
+            new() { Id = m.Id, FromUser = m.FromUser, Text = m.Content, Author = m.Author, Unsure = m.Unsure, Sources = m.Sources };
+    }
+
+    private LessonListDto? _list;
+    private LessonOpenDto? _open;
+    private readonly List<Msg> _messages = [];
+    private Tab _tab = Tab.Sources;
+    private bool _workOpen; // sağdan açılan çalışma paneli (varsayılan kapalı)
+    private bool _busy, _entered, _settingsOpen, _confirmDelete, _working, _photoBusy, _examSource, _planReminders = true;
+    private string _draft = "", _newName = "", _editName = "", _editInstructions = "", _topic = "", _newNote = "", _photoTitle = "", _examName = "";
+    private string? _status, _notice, _photoDraft, _photoPreview;
+    private long? _claudeAsked, _materialId;
+    private bool _editing;
+    private string _editText = "";
+    private int _quizCount = 6;
+    private DateTime _examDate = DateTime.Today.AddDays(14);
+    private LessonMaterialDto? _quiz;
+    private QuizGradeDto? _grade;
+    private string[] _answers = [];
+    private PendingImage? _pendingImage;
+    private ElementReference _messagesEl, _promptEl, _sendEl;
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Client.LessonUpdate += OnLessonUpdate;
+        try
+        {
+            _list = await Client.ListLessonsAsync();
+            if (_list.Sessions.Count > 0)
+                await OpenAsync(_list.Sessions[0].Id);
+        }
+        catch (Exception ex)
+        {
+            _status = "Ders arayüzü açılamadı: " + ex.Message;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("ultron.bindComposer", _promptEl, _sendEl);
+            _entered = true; // geçiş efekti
+            StateHasChanged();
+        }
+        await JS.InvokeVoidAsync("ultron.renderMath");
+        await JS.InvokeVoidAsync("ultronStudio.scrollToBottom", _messagesEl);
+    }
+
+    // ---- Dersler ----
+
+    private async Task OpenAsync(long id)
+    {
+        _open = await Client.OpenLessonAsync(id);
+        _messages.Clear();
+        _claudeAsked = null;
+        _settingsOpen = _confirmDelete = false;
+        _quiz = null;
+        _grade = null;
+        _materialId = null;
+        _notice = null;
+        _photoDraft = null;
+        if (_open is null)
+            return;
+        _messages.AddRange(_open.Messages.Select(Msg.From));
+        _examName = _open.Session.ExamName ?? "";
+        if (_open.Session.ExamAtLocal is { } exam)
+            _examDate = exam.Date;
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (_open is null)
+            return;
+        var keepMessages = _messages.ToList();
+        _open = await Client.OpenLessonAsync(_open.Session.Id);
+        _messages.Clear();
+        _messages.AddRange(keepMessages);
+    }
+
+    private async Task CreateAsync(string name, string? course)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+        var session = await Client.CreateLessonAsync(name.Trim(), course);
+        _newName = "";
+        _list = await Client.ListLessonsAsync();
+        await OpenAsync(session.Id);
+        _tab = Tab.Sources;
+    }
+
+    private void ToggleSettings()
+    {
+        _settingsOpen = !_settingsOpen;
+        _confirmDelete = false;
+        if (_settingsOpen && _open is not null)
+        {
+            _editName = _open.Session.Name;
+            _editInstructions = _open.Session.Instructions;
+        }
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        if (_open is null)
+            return;
+        await Client.UpdateLessonAsync(_open.Session.Id, _editName, _editInstructions);
+        _settingsOpen = false;
+        _list = await Client.ListLessonsAsync();
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_open is null || _busy)
+            return;
+        await Client.DeleteLessonAsync(_open.Session.Id);
+        _open = null;
+        _messages.Clear();
+        _list = await Client.ListLessonsAsync();
+        if (_list.Sessions.Count > 0)
+            await OpenAsync(_list.Sessions[0].Id);
+    }
+
+    // ---- Sohbet ----
+
+    private async Task SendAsync()
+    {
+        var text = _draft.Trim();
+        if (_open is null || (text.Length == 0 && _pendingImage is null) || _busy)
+            return;
+        var image = _pendingImage;
+        _pendingImage = null;
+        _draft = "";
+        await JS.InvokeVoidAsync("ultron.resetComposer", _promptEl);
+        _messages.Add(new Msg { FromUser = true, Text = text.Length > 0 ? text : "(görsel)", ImagePreview = image?.Preview });
+        var reply = new Msg { Text = "", Streaming = true };
+        _messages.Add(reply);
+        _busy = true;
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        var sessionId = _open.Session.Id;
+        StateHasChanged();
+        try
+        {
+            await foreach (var e in Client.AskLessonAsync(sessionId, text, image?.Jpeg, _cts.Token))
+            {
+                switch (e.Type)
+                {
+                    case "started":
+                        reply.Sources = e.Sources ?? [];
+                        if (e.Solving == true)
+                            reply.Text = "Adımları kuruyorum, sayıları hesaplayıcı bulacak…";
+                        break;
+                    case "chunk":
+                        if (reply.Text.StartsWith("Adımları kuruyorum", StringComparison.Ordinal))
+                            reply.Text = "";
+                        reply.Text += e.Text;
+                        break;
+                    case "completed" when e.Message is { } m:
+                        reply.Id = m.Id;
+                        reply.Text = m.Content;
+                        reply.Author = m.Author;
+                        reply.Unsure = m.Unsure;
+                        reply.Sources = m.Sources;
+                        break;
+                    case "failed":
+                        reply.Text = e.Text ?? "Bir sorun çıktı.";
+                        break;
+                }
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            reply.Text += "\n\n_(Durduruldu.)_";
+        }
+        catch (Exception ex)
+        {
+            reply.Text = "Bağlantı sorunu: " + ex.Message;
+        }
+        finally
+        {
+            reply.Streaming = false;
+            _busy = false;
+            if (text.Length > 0 && LooksLikeNote(text))
+                await ReloadAsync(); // "not al" → Notlar sekmesi
+        }
+    }
+
+    private static bool LooksLikeNote(string text) =>
+        text.Contains("not al", StringComparison.OrdinalIgnoreCase) || text.Contains("unutma", StringComparison.OrdinalIgnoreCase) || text.Contains("aklında tut", StringComparison.OrdinalIgnoreCase);
+
+    private Task SendOrStopAsync()
+    {
+        if (!_busy)
+            return SendAsync();
+        _cts?.Cancel();
+        return Task.CompletedTask;
+    }
+
+    private async Task AskClaudeAsync(long messageId)
+    {
+        if (_open is null)
+            return;
+        _claudeAsked = messageId;
+        _status = await Client.AskLessonClaudeAsync(_open.Session.Id, messageId);
+    }
+
+    private void OnLessonUpdate(LessonUpdateDto update) => InvokeAsync(async () =>
+    {
+        if (_open?.Session.Id != update.SessionId)
+            return;
+        _status = update.Finished ? null : "Claude: " + update.Status;
+        if (update.Finished)
+        {
+            if (update.Message is { } m)
+            {
+                _messages.Add(Msg.From(m));
+                await ReloadAsync(); // Claude'un cevabı bu dersin notlarına geçti
+            }
+            else
+                _messages.Add(new Msg { Text = update.Status });
+        }
+        StateHasChanged();
+    });
+
+    private async Task OnQuestionImageAsync(InputFileChangeEventArgs e)
+    {
+        if (await ReadImageAsync(e.File) is { } jpeg)
+            _pendingImage = new PendingImage(jpeg, e.File.Name);
+    }
+
+    /// <summary>UltronApp'tan: Ders modundayken Ctrl+V ile yapıştırılan görsel (soru görseli olur).</summary>
+    public Task SetPastedImageAsync(byte[] image, string name) => InvokeAsync(() =>
+    {
+        _pendingImage = new PendingImage(ImageTools.Prepare(image), string.IsNullOrWhiteSpace(name) ? "yapıştırılan görsel" : name);
+        StateHasChanged();
+    });
+
+    /// <summary>Bırakılan dosyalar: tek görsel soruya; belgeler bu dersin kaynaklarına (çalışma paneli Kaynaklar'da açılır).</summary>
+    private async Task OnDroppedAsync(InputFileChangeEventArgs e)
+    {
+        var files = e.GetMultipleFiles(10);
+        if (files.Count == 1 && ImageTools.IsImage(files[0].Name))
+        {
+            await OnQuestionImageAsync(e);
+            return;
+        }
+        if (_open is null)
+        {
+            _notice = "Kaynak eklemek için önce soldan bir ders seç.";
+            return;
+        }
+        _tab = Tab.Sources;
+        _workOpen = true;
+        await OnSourceFilesAsync(e);
+    }
+
+    // ---- Kaynaklar ----
+
+    private async Task OnSourceFilesAsync(InputFileChangeEventArgs e)
+    {
+        if (_open is null)
+            return;
+        var messages = new List<string>();
+        foreach (var file in e.GetMultipleFiles(10))
+        {
+            _notice = $"{file.Name} okunuyor…";
+            StateHasChanged();
+            try
+            {
+                await using var stream = file.OpenReadStream(maxAllowedSize: 50L * 1024 * 1024);
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer);
+                buffer.Position = 0;
+                var result = await Client.UploadLessonFileAsync(_open.Session.Id, file.Name, _examSource, buffer);
+                messages.Add(result.Message);
+            }
+            catch (Exception ex)
+            {
+                messages.Add($"{file.Name}: {ex.Message}");
+            }
+        }
+        _notice = string.Join(" · ", messages);
+        await ReloadAsync();
+    }
+
+    private async Task OnPhotoAsync(InputFileChangeEventArgs e)
+    {
+        if (await ReadImageAsync(e.File) is not { } jpeg)
+            return;
+        _photoBusy = true;
+        _photoPreview = ImageTools.DataUrl(jpeg);
+        _photoTitle = Path.GetFileNameWithoutExtension(e.File.Name);
+        StateHasChanged();
+        try
+        {
+            _photoDraft = await Client.ReadLessonPhotoAsync(jpeg);
+        }
+        catch (Exception ex)
+        {
+            _notice = "Fotoğraf okunamadı: " + ex.Message;
+        }
+        finally
+        {
+            _photoBusy = false;
+        }
+    }
+
+    private async Task ApprovePhotoAsync()
+    {
+        if (_open is null || string.IsNullOrWhiteSpace(_photoDraft))
+            return;
+        var result = await Client.AddLessonTextAsync(_open.Session.Id, _photoTitle, _photoDraft, _examSource);
+        _notice = result.Message;
+        _photoDraft = null;
+        _photoPreview = null;
+        await ReloadAsync();
+    }
+
+    private async Task RemoveSourceAsync(long documentId)
+    {
+        if (_open is null)
+            return;
+        await Client.RemoveLessonSourceAsync(_open.Session.Id, documentId);
+        await ReloadAsync();
+    }
+
+    private static async Task<byte[]?> ReadImageAsync(IBrowserFile file)
+    {
+        try
+        {
+            await using var stream = file.OpenReadStream(maxAllowedSize: 30L * 1024 * 1024);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            return ImageTools.Prepare(buffer.ToArray());
+        }
+        catch (Exception ex)
+        {
+            DesktopLog.Write($"Görsel okunamadı ({file.Name}): {ex.Message}");
+            return null;
+        }
+    }
+
+    // ---- Özet / formül kağıdı ----
+
+    private RenderFragment MaterialList(Func<LessonMaterialDto, bool> filter) => __builder =>
+    {
+        var items = _open?.Materials.Where(filter).ToList() ?? [];
+        if (items.Count == 0)
+            return;
+        <div class="ls-materials">
+            @foreach (var m in items)
+            {
+                <button class="ls-material @(m.Id == _materialId || m.Id == _quiz?.Id ? "on" : "")" @onclick="() => SelectMaterial(m)">
+                    <span>@m.Title</span><em>@m.UpdatedAtLocal.ToString("dd.MM HH:mm")</em>
+                </button>
+            }
+        </div>
+    };
+
+    private RenderFragment MaterialView() => __builder =>
+    {
+        if (_open?.Materials.FirstOrDefault(m => m.Id == _materialId) is not { } material)
+        {
+            if (_working)
+            {
+                <div class="st-status">Hazırlanıyor… (kaynakları okuyorum)</div>
+            }
+            return;
+        }
+        <div class="ls-doc-tools">
+            <span class="ls-quiz-title">@material.Title</span>
+            <span>
+                <button class="st-ghost" @onclick="() => CopyAsync(material.Content)">Kopyala</button>
+                <button class="st-ghost @(_editing ? "on" : "")" @onclick="() => { _editing = !_editing; _editText = material.Content; }">Düzenle</button>
+                <button class="st-ghost danger" @onclick="() => DeleteMaterialAsync(material.Id)">Sil</button>
+            </span>
+        </div>
+        @if (_editing)
+        {
+            <textarea class="ls-edit" rows="18" @bind="_editText"></textarea>
+            <div class="st-card-actions"><button class="st-primary" @onclick="() => SaveMaterialAsync(material)">Kaydet</button></div>
+        }
+        else
+        {
+            <div class="md ls-md ls-doc">@((MarkupString)MarkdownRenderer.ToHtml(material.Content))</div>
+        }
+    };
+
+    private void SelectMaterial(LessonMaterialDto material)
+    {
+        _editing = false;
+        if (material.Kind == "quiz")
+        {
+            _quiz = material;
+            _grade = null;
+            _answers = new string[material.Quiz?.Count ?? 0];
+            Array.Fill(_answers, "");
+        }
+        else
+            _materialId = material.Id;
+    }
+
+    private void SelectTab(Tab tab)
+    {
+        _tab = tab;
+        _workOpen = true;
+        _notice = null;
+    }
+
+    private async Task MakeMaterialAsync(string kind)
+    {
+        if (_open is null)
+            return;
+        _working = true;
+        _materialId = null;
+        StateHasChanged();
+        try
+        {
+            var material = await Client.MakeLessonMaterialAsync(_open.Session.Id, kind, _topic.Trim());
+            await ReloadAsync();
+            _materialId = material?.Id;
+            _notice = material is null ? "Hazırlanamadı; konuyu biraz daha açık yazar mısın?" : null;
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    private async Task SaveMaterialAsync(LessonMaterialDto material)
+    {
+        await Client.SaveLessonMaterialAsync(material.Id, material.Title, _editText);
+        _editing = false;
+        await ReloadAsync();
+    }
+
+    private async Task DeleteMaterialAsync(long id)
+    {
+        await Client.DeleteLessonMaterialAsync(id);
+        _materialId = null;
+        if (_quiz?.Id == id)
+            _quiz = null;
+        await ReloadAsync();
+    }
+
+    private async Task CopyAsync(string text) => await JS.InvokeAsync<bool>("ultronStudio.copy", text);
+
+    // ---- Quiz ----
+
+    private async Task MakeQuizAsync()
+    {
+        if (_open is null)
+            return;
+        _working = true;
+        _quiz = null;
+        StateHasChanged();
+        try
+        {
+            var quiz = await Client.MakeLessonQuizAsync(_open.Session.Id, _topic.Trim(), _quizCount);
+            await ReloadAsync();
+            if (quiz is null)
+                _notice = "Quiz hazırlanamadı; tekrar dener misin?";
+            else
+                SelectMaterial(quiz);
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    private async Task GradeAsync()
+    {
+        if (_quiz is null)
+            return;
+        _working = true;
+        StateHasChanged();
+        try
+        {
+            _grade = await Client.GradeLessonQuizAsync(_quiz.Id, _answers);
+            await ReloadAsync(); // zayıf konular
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    private void RetryQuiz()
+    {
+        _grade = null;
+        Array.Fill(_answers, "");
+    }
+
+    // ---- Plan ----
+
+    private async Task MakePlanAsync()
+    {
+        if (_open is null)
+            return;
+        _working = true;
+        _notice = null;
+        StateHasChanged();
+        try
+        {
+            var result = await Client.MakeLessonPlanAsync(_open.Session.Id, _examName.Trim(), _examDate, _planReminders);
+            _notice = result.Message;
+            await ReloadAsync();
+            _list = await Client.ListLessonsAsync();
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    // ---- Notlar ----
+
+    private async Task AddNoteAsync()
+    {
+        if (_open is null)
+            return;
+        await Client.AddLessonNoteAsync(_open.Session.Id, _newNote.Trim());
+        _newNote = "";
+        await ReloadAsync();
+    }
+
+    private async Task RemoveNoteAsync(long id)
+    {
+        await Client.RemoveLessonNoteAsync(id);
+        await ReloadAsync();
+    }
+
+    // ---- Yardımcılar ----
+
+    private static string? ExamLabel(LessonSessionDto s)
+    {
+        if (s.ExamAtLocal is not { } exam)
+            return null;
+        var days = (exam.Date - DateTime.Today).Days;
+        return days < 0 ? null : days == 0 ? $"{s.ExamName ?? "Sınav"} bugün" : $"{s.ExamName ?? "Sınav"} · {days} gün";
+    }
+
+    private static string KindLabel(string kind) => kind switch
+    {
+        "Pdf" => "PDF",
+        "Word" => "Word",
+        "Slides" => "Slayt",
+        "Text" => "Metin",
+        _ => kind,
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        Client.LessonUpdate -= OnLessonUpdate;
+        _cts?.Cancel();
+        _cts?.Dispose();
+        await Task.CompletedTask;
+    }
+}

@@ -1,0 +1,13 @@
+<!-- Masaüstünde hep duran Ultron simgesi: sürükle-bırakla taşınır, sol tık arayüzü açar/kapatır, sağ tık arayüz açmadan dinler. -->
+<Window x:Class="Ultron.Desktop.Widget.WidgetWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:w="clr-namespace:Ultron.Desktop.Widget"
+        Title="Ultron simgesi" Width="104" Height="104"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        ToolTip="Ultron · tıkla: arayüz · sağ tık: konuş · sürükle: taşı">
+    <Grid Margin="6">
+        <w:UltronEmblem x:Name="Emblem" Cursor="Hand" />
+    </Grid>
+</Window>

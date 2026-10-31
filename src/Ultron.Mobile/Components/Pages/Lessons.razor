@@ -1,0 +1,60 @@
+@page "/ders"
+@inject UltronConnection Connection
+@inject NavigationManager Nav
+
+<div class="screen scroll">
+    <div class="chat-head">
+        <button class="icon-btn" @onclick='() => Nav.NavigateTo("/")'>←</button>
+        <div class="title"><b>Ders</b><small>Bilgisayardaki ders oturumların</small></div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="glass empty">@_error</div>
+    }
+    else if (_list is null)
+    {
+        <div class="glass empty">Yükleniyor…</div>
+    }
+    else
+    {
+        @if (_list.Sessions.Count == 0)
+        {
+            <div class="glass empty">Henüz ders oturumu yok. Bilgisayarda Ders bölümünden açabilirsin.</div>
+        }
+        <div class="history">
+            @foreach (var s in _list.Sessions)
+            {
+                <button class="glass lesson-item" @onclick='() => Nav.NavigateTo($"/ders/{s.Id}")'>
+                    <div>
+                        <b>@s.Name</b>
+                        <small>@(s.Course ?? "Ders") · @s.UpdatedAtLocal.ToString("d MMM", Tr)</small>
+                    </div>
+                    @if (s.ExamAtLocal is { } exam && exam > DateTime.Now)
+                    {
+                        <span class="chip">@(s.ExamName ?? "Sınav") · @((exam.Date - DateTime.Today).Days) gün</span>
+                    }
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Tr = new("tr-TR");
+    private LessonListDto? _list;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await Connection.ConnectAsync();
+            _list = await Connection.Hub.InvokeAsync<LessonListDto>(ChatHubContract.ListLessons);
+        }
+        catch (Exception)
+        {
+            _error = "Dersler alınamadı: Ultron'a ulaşılamadı.";
+        }
+    }
+}

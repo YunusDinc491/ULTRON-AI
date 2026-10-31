@@ -1,0 +1,42 @@
+# Derleme çıktıları
+bin/
+obj/
+artifacts/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Veritabanı (kişisel veriler repoya girmez)
+*.db
+*.db-shm
+*.db-wal
+
+# Gizli bilgiler
+appsettings.*.local.json
+*.secrets.json
+.env
+**/.env
+
+# Model değerlendirme: test görselleri (yerelde kalır)
+tests/model-eval/gorseller/*.webp
+tests/model-eval/gorseller/images*.jpg
+
+# Ses örnekleri (üretilen WAV dosyaları)
+ses-ornekleri/
+
+# Claude Code yerel ayarları
+.claude/settings.local.json
+
+# Kurulum çıktısı (Setup.exe ve yayımlanan dosyalar)
+installer/cikti/
+
+# Faz 16: �retilen bile�en galerileri (yeniden �retilebilir)
+tests/ultron-is/galeri*/
+
+# Gizli anahtarlar (Faz 20): asıl yeri %USERPROFILE%\Ultron\, proje klasörüne konursa git e girmesin
+tavily-anahtar.txt
+*-anahtar.txt

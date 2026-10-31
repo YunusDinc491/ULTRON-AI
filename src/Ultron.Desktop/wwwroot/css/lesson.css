@@ -1,0 +1,104 @@
+/* Ders arayüzü (Faz 17): İş arayüzüyle aynı aile (studio.css değişkenleri); 3 sütun: dersler · sohbet · çalışma paneli. */
+.lesson { --ls-left: 230px; --ls-right: minmax(360px, 0.9fr); }
+.ls-crumb { color: var(--st-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.ls-body { position: relative; display: grid; grid-template-columns: var(--ls-left) 1fr; min-height: 0; overflow: hidden; }
+
+/* ---- Sol: dersler ---- */
+.ls-courses { display: flex; flex-direction: column; gap: 4px; padding: 14px 10px; border-right: 1px solid var(--st-line); background: var(--st-panel); overflow-y: auto; }
+.ls-col-head { font-family: var(--st-serif); font-size: 17px; padding: 0 6px 6px; }
+.ls-col-sub { color: var(--st-muted); font-size: 11.5px; padding: 12px 6px 2px; text-transform: uppercase; letter-spacing: .06em; }
+.ls-course { display: grid; gap: 1px; text-align: left; border: 0; background: transparent; border-radius: 8px; padding: 7px 9px; }
+.ls-course:hover { background: var(--st-surface); }
+.ls-course.on { background: var(--st-raised); }
+.ls-course-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ls-course-exam { font-size: 11.5px; color: var(--st-accent-2); }
+.ls-new { display: flex; gap: 4px; margin-top: 8px; }
+.ls-new input { flex: 1; min-width: 0; }
+.ls-suggest { text-align: left; border: 1px dashed var(--st-line); background: transparent; border-radius: 8px; padding: 6px 9px; color: var(--st-muted) !important; }
+.ls-suggest:hover { border-color: var(--st-accent); color: var(--st-text) !important; }
+.ls-voice { margin-top: auto; padding: 10px 6px 0; font-size: 11.5px; color: var(--st-muted); }
+
+/* ---- Orta: sohbet ---- */
+.ls-chat { grid-template-rows: auto 1fr auto; }
+.ls-session-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--st-line); }
+.ls-session-name { font-family: var(--st-serif); font-size: 19px; }
+.ls-session-meta { font-size: 12px; }
+.ls-settings { display: grid; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--st-line); background: var(--st-panel); }
+.ls-settings label { display: grid; gap: 4px; font-size: 12.5px; color: var(--st-muted); }
+.ls-md { line-height: 1.6; overflow-wrap: anywhere; }
+.ls-md p { margin: .4em 0; }
+.ls-md ul, .ls-md ol { margin: .4em 0; padding-left: 1.3em; }
+.ls-md code { font-family: var(--st-mono); font-size: .9em; background: var(--st-surface); padding: 1px 5px; border-radius: 5px; }
+.ls-md h2, .ls-md h3 { font-family: var(--st-serif); font-weight: 400; margin: .8em 0 .3em; }
+.ls-md table { border-collapse: collapse; }
+.ls-md td, .ls-md th { border: 1px solid var(--st-line); padding: 3px 8px; }
+.ls-md .katex { color: var(--st-text); font-size: calc(1.12em * var(--formula-scale, 1)); }
+.ls-author { font-size: 11.5px; color: var(--st-accent-2); text-transform: uppercase; letter-spacing: .06em; }
+.ls-sources { display: flex; flex-wrap: wrap; gap: 4px; }
+.ls-sources span { font-size: 11.5px; color: var(--st-muted); border: 1px solid var(--st-line); border-radius: 999px; padding: 1px 8px; }
+
+/* ---- Sağ: çalışma paneli ---- */
+.ls-work { position: absolute; top: 0; right: 0; bottom: 0; z-index: 5; width: min(480px, 92%); display: grid; grid-template-rows: auto 1fr; min-height: 0; background: var(--st-panel); border-left: 1px solid var(--st-line); box-shadow: -18px 0 40px rgba(0, 0, 0, .35); transform: translateX(105%); visibility: hidden; transition: transform .3s ease, visibility .3s; }
+.ls-work.open { transform: none; visibility: visible; }
+.ls-work .st-tabs { position: relative; }
+.ls-work-close { position: absolute; right: 8px; top: 6px; z-index: 1; background: none; border: 0; color: var(--st-muted); font-size: 14px; }
+.ls-work-close:hover { color: var(--st-text); }
+.ls-pane { overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.ls-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.ls-row input:not([type]), .ls-row select, .ls-plan-form input, .ls-plan-form select, .ls-new input, .ls-settings input, .ls-settings textarea,
+.ls-pane .st-inline input, .ls-draft input, .ls-draft textarea, .ls-answer, .ls-edit {
+    border: 1px solid var(--st-line);
+    background: var(--st-surface);
+    color: var(--st-text);
+    border-radius: 8px;
+    padding: 6px 9px;
+    font: inherit;
+}
+.ls-row input:not([type]) { flex: 1; min-width: 120px; }
+.ls-pane .st-inline input { flex: 1; min-width: 0; }
+.ls-file { cursor: pointer; display: inline-block; }
+.ls-file input { display: none; }
+.ls-check { display: inline-flex; gap: 5px; align-items: center; font-size: 12.5px; color: var(--st-muted); }
+.ls-help { font-size: 12.5px; line-height: 1.5; }
+.ls-h { margin: 8px 0 0; font-size: 13px; font-weight: 600; }
+
+.ls-draft { display: grid; gap: 8px; border: 1px solid var(--st-accent); border-radius: 12px; padding: 10px; background: rgba(217, 119, 87, .05); }
+.ls-draft-head { display: flex; gap: 10px; align-items: center; font-size: 12.5px; }
+.ls-draft-head img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; }
+.ls-draft textarea, .ls-edit { resize: vertical; font-family: var(--st-mono); font-size: 12.5px; line-height: 1.55; }
+
+.ls-materials { display: grid; gap: 4px; }
+.ls-material { display: flex; justify-content: space-between; gap: 8px; text-align: left; border: 1px solid var(--st-line); background: var(--st-bg); border-radius: 8px; padding: 6px 10px; }
+.ls-material.on { border-color: var(--st-accent); }
+.ls-material em { color: var(--st-muted); font-style: normal; font-size: 11.5px; white-space: nowrap; }
+.ls-doc-tools { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ls-doc-tools span:last-child { display: flex; gap: 4px; }
+.ls-doc { background: var(--st-bg); border: 1px solid var(--st-line); border-radius: 10px; padding: 12px 14px; }
+
+.ls-quiz { display: grid; gap: 10px; }
+.ls-quiz-title { font-weight: 600; }
+.ls-q { border: 1px solid var(--st-line); border-radius: 10px; padding: 10px 12px; background: var(--st-bg); display: grid; gap: 6px; }
+.ls-q.ok { border-color: var(--st-ok); }
+.ls-q.bad { border-color: #c2553f; }
+.ls-q-text .md { display: inline; }
+.ls-q-text .md p { display: inline; margin: 0; }
+.ls-choice { display: flex; gap: 6px; align-items: baseline; cursor: pointer; line-height: 1.45; }
+.ls-choice .md p { margin: 0; }
+.ls-answer { width: 100%; }
+.ls-feedback { font-size: 12.5px; color: var(--st-muted); }
+.ls-feedback .md p { display: inline; margin: 0; }
+.ls-q-topic { font-size: 11px; color: var(--st-muted); justify-self: end; }
+.ls-score { font-weight: 600; color: var(--st-accent-2); }
+
+.ls-plan-form { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
+.ls-plan-form input[type="date"] { color-scheme: dark; }
+
+@media (max-width: 1100px) {
+    .ls-body { grid-template-columns: 180px 1fr; }
+}
+.ls-work .st-tablist { padding-right: 32px; }
+
+/* Blok formül (2026-10-31, kullanıcı: "sen anlatırken büyük ve ortalı yazıp formüle odaklanmamı sağlıyordun"). */
+.ls-md .katex-display { text-align: center; margin: 1em auto; padding: 14px 18px; border: 1px solid var(--st-line); border-radius: 10px; background: rgba(255, 255, 255, .03); overflow-x: auto; overflow-y: hidden; }
+.ls-md .katex-display > .katex { font-size: calc(1.6em * var(--formula-scale, 1)); }

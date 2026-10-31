@@ -1,0 +1,10 @@
+<Project>
+  <!-- Tüm projeler için ortak ayarlar. Her .csproj bu dosyayı otomatik içe aktarır. -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Null uyarıları hata sayılır: "bu değer boş olabilir" hatası derleme aşamasında yakalanır. -->
+    <WarningsAsErrors>nullable</WarningsAsErrors>
+  </PropertyGroup>
+</Project>

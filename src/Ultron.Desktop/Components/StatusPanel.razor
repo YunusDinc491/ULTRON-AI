@@ -1,0 +1,127 @@
+@* /durum ile açılan cam panel: sadece gerçek veriler. *@
+<aside class="panel">
+    <div class="panel-head">
+        <span class="panel-title">SİSTEM DURUMU</span>
+        <button class="x" title="Kapat (Esc)" @onclick="OnClose">✕</button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="muted">Durum alınamadı: @_error</div>
+    }
+    else if (_status is null)
+    {
+        <div class="muted">Yükleniyor…</div>
+    }
+    else
+    {
+        <div class="row"><span class="k">Dil modeli</span><span class="v">@_status.ChatModel</span></div>
+        <div class="row"><span class="k">Anlam modeli</span><span class="v">@_status.EmbeddingModel</span></div>
+        <div class="row"><span class="k">Web araması</span><span class="v @(_status.WebOnline ? "ok" : "off")">@(_status.WebOnline ? "ÇEVRİMİÇİ" : "KAPALI")</span></div>
+        <div class="row"><span class="k">Hafıza</span><span class="v">@_status.MemoryCount kayıt</span></div>
+        @if (_status.Telegram is { } telegram)
+        {
+            <div class="row"><span class="k">Telegram</span><span class="v @(telegram.StartsWith("BAĞLI") ? "ok" : telegram.StartsWith("EŞLEŞME") ? "" : "off")">@telegram</span></div>
+        }
+        @if (_status.Services is { } services)
+        {
+            <div class="row"><span class="k">Servisler</span><span class="v @(services.Contains("BAŞLATILAMADI") ? "off" : "ok")">@services</span></div>
+        }
+        @if (_status.Library is { } library)
+        {
+            <div class="row"><span class="k">Kütüphane</span><span class="v @(library.Contains("ŞU AN") ? "" : library.StartsWith("boş") ? "off" : "ok")">@library</span></div>
+        }
+        @if (_status.Backup is { } backup)
+        {
+            <div class="row"><span class="k">Yedek</span><span class="v @(backup.StartsWith("HATA") ? "off" : backup.StartsWith("son:") ? "ok" : "")">@backup</span></div>
+        }
+        @if (_status.WakeForBriefing is { } wake)
+        {
+            <div class="row"><span class="k">Sabah uyandırma</span><span class="v @(wake.Contains("DİKKAT") || wake.Contains("kurulamadı") ? "off" : wake.StartsWith("açık") ? "ok" : "")">@wake</span></div>
+        }
+
+        @if (_status.MemoriesByCategory.Count > 0)
+        {
+            var max = _status.MemoriesByCategory.Values.Max();
+            <div class="section">HAFIZA DAĞILIMI</div>
+            @foreach (var (category, count) in _status.MemoriesByCategory.OrderByDescending(x => x.Value))
+            {
+                <div class="bar">
+                    <span>@category</span>
+                    <span class="track"><span class="fill" style="width:@(100 * count / max)%"></span></span>
+                    <span class="c">@count</span>
+                </div>
+            }
+        }
+
+        <div class="section">BEKLEYEN HATIRLATICILAR</div>
+        @if (_status.PendingReminders is not { Count: > 0 })
+        {
+            <div class="muted" style="margin-top:6px">Yok.</div>
+        }
+        else
+        {
+            @foreach (var r in _status.PendingReminders)
+            {
+                <div class="query"><time>@r.DueAtLocal.ToString("dd.MM HH:mm")</time><span>#@r.Id · @r.Text <span class="muted">(@r.Recurrence)</span></span></div>
+            }
+        }
+
+        <div class="section">SON ARAÇ ÇAĞRILARI (DENETİM KAYDI)</div>
+        @if (_status.RecentTools is not { Count: > 0 })
+        {
+            <div class="muted" style="margin-top:6px">Henüz yok.</div>
+        }
+        else
+        {
+            @foreach (var t in _status.RecentTools)
+            {
+                <div class="query" title="@t.Arguments → @t.Result">
+                    <time>@t.AtUtc.ToLocalTime().ToString("dd.MM HH:mm")</time>
+                    <span class="@(t.Ok ? "" : "err-line")">@t.Tool @(t.Ok ? "✓" : "✕")@(t.Approval is { } a ? $" · onay: {a}" : "")</span>
+                </div>
+            }
+        }
+
+        @if (_status.Permissions is { } p)
+        {
+            <div class="section">BİLGİSAYAR YETKİLERİ <span class="muted">· konuşarak değişir ("Spotify'ı izinli uygulamalara ekle")</span></div>
+            <div class="row"><span class="k">İzinli uygulamalar</span><span class="v">@string.Join(", ", p.Apps)</span></div>
+            <div class="row"><span class="k">İzinli klasörler</span><span class="v">@string.Join(" · ", p.Folders)</span></div>
+            <div class="row"><span class="k">Süreli izinler</span><span class="v">@(p.Grants.Count == 0 ? "yok" : string.Join(", ", p.Grants))</span></div>
+            <div class="row"><span class="k">Claude Code ile paylaşılan hafıza</span><span class="v">@(p.SharedMemory is { Count: > 0 } s ? string.Join(", ", s) : "hiçbiri")</span></div>
+            <div class="muted" style="margin-top:6px">Onaylı: listede olmayan uygulama, izinli klasör dışına yazma, silme (geri dönüşüm kutusu), komut, yetki artırma. Yasak: sistem klasörleri/ayarları, kalıcı silme, parola, para.</div>
+        }
+
+        <div class="section">İNTERNETE GİDEN SON SORGULAR</div>
+        @if (_status.RecentQueries.Count == 0)
+        {
+            <div class="muted" style="margin-top:6px">Henüz yok.</div>
+        }
+        @foreach (var q in _status.RecentQueries)
+        {
+            <div class="query"><time>@q.CreatedAtUtc.ToLocalTime().ToString("dd.MM HH:mm")</time><span>@q.Query</span></div>
+        }
+    }
+</aside>
+
+@code {
+    [Parameter, EditorRequired] public UltronClient Client { get; set; } = null!;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private StatusDto? _status;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _status = await Client.GetStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

@@ -1,0 +1,37 @@
+﻿<Application x:Class="Ultron.Desktop.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <!-- Pencere kapatılınca uygulama kapanmaz, tepsiye iner. Çıkış tepsi menüsünden. -->
+    <Application.Resources>
+        <SolidColorBrush x:Key="Bg" Color="#03070A" />
+        <SolidColorBrush x:Key="Accent" Color="#50DCFF" />
+        <SolidColorBrush x:Key="Muted" Color="#4F7380" />
+        <SolidColorBrush x:Key="Hover" Color="#0C1C24" />
+
+        <Style x:Key="TitleButton" TargetType="Button">
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bg" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="{StaticResource Hover}" />
+                                <Setter Property="Foreground" Value="#E6E6E6" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>

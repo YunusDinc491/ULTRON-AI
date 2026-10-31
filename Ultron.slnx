@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Ultron.Cli/Ultron.Cli.csproj" />
+    <Project Path="src/Ultron.Contracts/Ultron.Contracts.csproj" />
+    <Project Path="src/Ultron.Core/Ultron.Core.csproj" />
+    <Project Path="src/Ultron.Desktop/Ultron.Desktop.csproj" />
+    <Project Path="src/Ultron.Host/Ultron.Host.csproj" />
+    <Project Path="src/Ultron.Infrastructure/Ultron.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ultron.Tests/Ultron.Tests.csproj" />
+  </Folder>
+</Solution>

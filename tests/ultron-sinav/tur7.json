@@ -1,0 +1,25 @@
+{
+  "aciklama": "Tur 7 (06:15): Termodinamik II ve Akışkanlar — notları ezberden değil uygulamadan sınar (yeni sorular).",
+  "sorular": [
+    { "id": "n01", "seviye": "2", "konu": "psikrometri", "soru": "Bağıl nem ile özgül nem arasındaki fark nedir?", "beklenen": "φ = Pv/Pg (doymaya göre oran), ω = mv/ma = 0,622 Pv/(P−Pv) (kg buhar/kg kuru hava)." },
+    { "id": "n02", "seviye": "3", "konu": "psikrometri", "soru": "Kışın evi ısıttığımızda neden içerideki hava kuru gelir?", "beklenen": "Isıtmada ω sabit, Pg artar → φ düşer; dışarıdaki soğuk havanın nemi azdır." },
+    { "id": "n03", "seviye": "3", "konu": "psikrometri", "soru": "Buzdan çıkardığım soğuk şişenin dışı neden terler?", "beklenen": "Yüzey sıcaklığı havanın çiy noktasının altında → su buharı yoğuşur." },
+    { "id": "n04", "seviye": "3", "konu": "psikrometri", "soru": "Klimalar havayı soğuturken nem de alır. Bu nasıl oluyor?", "beklenen": "Evaporatör bobini çiy noktasının altında → nem yoğuşup drene akar → ω düşer; gerekirse yeniden ısıtma." },
+    { "id": "n05", "seviye": "2", "konu": "yanma", "soru": "Metanın havayla tam yanma denklemini yazar mısın?", "beklenen": "CH4 + 2(O2 + 3,76 N2) → CO2 + 2 H2O + 7,52 N2." },
+    { "id": "n06", "seviye": "3", "konu": "yanma", "soru": "Üst ısıl değer ile alt ısıl değer arasındaki fark ne?", "beklenen": "HHV ürünlerdeki su sıvı, LHV buhar; fark = m_su h_fg." },
+    { "id": "n07", "seviye": "4", "konu": "yanma", "soru": "Bir brülörde fazla hava oranı artırılırsa alev sıcaklığı ve verim nasıl etkilenir? Neden?", "beklenen": "Fazla hava ısınması gereken kütleyi artırır → alev sıcaklığı düşer; baca kaybı artar → verim düşer; ama çok az hava eksik yanma (CO)." },
+    { "id": "n08", "seviye": "3", "konu": "gaz karışımı", "soru": "Havanın içindeki oksijenin kısmi basıncı deniz seviyesinde yaklaşık kaç kPa'dır? Kısaca hesapla.", "beklenen": "P_O2 = y·P ≈ 0,21 × 101,325 ≈ 21,3 kPa." },
+    { "id": "n09", "seviye": "2", "konu": "sıkıştırılabilir", "soru": "Mach sayısı nedir? 20 °C havada ses hızı yaklaşık kaçtır?", "beklenen": "Ma = V/c; c = √(kRT) ≈ 343 m/s." },
+    { "id": "n10", "seviye": "4", "konu": "sıkıştırılabilir", "soru": "Roket motorlarının lülesi neden önce daralıp sonra genişler?", "beklenen": "Ses altında daralan kesit hızlandırır, boğazda Ma=1, ses üstünde genişleyen kesit hızlandırmaya devam eder (de Laval)." },
+    { "id": "n11", "seviye": "4", "konu": "sıkıştırılabilir", "soru": "Bir lülede boğulma (choking) olunca çıkış basıncını daha da düşürmek debiyi neden artırmaz?", "beklenen": "Boğazda Ma=1 olmuş; basınç bilgisi akış yukarı yayılamaz; debi boğaz şartlarıyla sınırlı (maksimum)." },
+    { "id": "n12", "seviye": "3", "konu": "momentum", "soru": "Yatay bir su jeti dik bir plakaya çarpıyor. Plakaya gelen kuvveti nasıl hesaplarım?", "beklenen": "Momentum denklemi: F = ṁ V = ρ A V² (jet yönünde, plaka sabit, su yanlara saçılıyor)." },
+    { "id": "n13", "seviye": "3", "konu": "boyut analizi", "soru": "Gemi modelleri test edilirken neden Reynolds değil Froude sayısı eşitlenir?", "beklenen": "Serbest yüzey/dalga etkileri yerçekimine bağlı → Fr eşit; ikisini birlikte sağlamak pratikte imkânsız." },
+    { "id": "n14", "seviye": "3", "konu": "boyut analizi", "soru": "Buckingham Pi teoremi ne işe yarar?", "beklenen": "n değişken, k boyut → n−k boyutsuz grup; deney sayısını azaltır, benzerlik kurar." },
+    { "id": "n15", "seviye": "4", "konu": "termo", "soru": "Bir gaz türbininde basınç oranı arttıkça verim neden artar ama net iş bir noktadan sonra düşer?", "beklenen": "η = 1 − 1/rp^((k−1)/k) artar; ama türbin giriş sıcaklığı sınırlı olduğundan ısı girişi azalır, kompresör işi artar → net iş maksimumdan sonra düşer." },
+    { "id": "n16", "seviye": "4", "konu": "termo", "soru": "Isı pompası kışın neden elektrikli ısıtıcıdan daha az elektrikle aynı ısıyı verebilir?", "beklenen": "Dış havadan ısı çeker, COP > 1 (Q_H = W + Q_L); elektrikli ısıtıcı COP = 1; ikinci yasa/ekserji açısından da." },
+    { "id": "n17", "seviye": "3", "konu": "ısı transferi", "soru": "Çift camlı pencere neden tek camlıdan daha iyi yalıtır?", "beklenen": "Aradaki hava/gaz düşük k → ek ısıl direnç (seri); taşınım sınırlı ince boşluk." },
+    { "id": "n18", "seviye": "2", "konu": "birim", "soru": "200 kPa gösterge basıncı, deniz seviyesinde mutlak basınç olarak kaç kPa eder?", "beklenen": "≈ 301,3 kPa (200 + 101,325)." },
+    { "id": "n19", "seviye": "4", "konu": "problem", "soru": "Hava 300 K'den başlayarak 1:8 basınç oranında izantropik sıkıştırılıyor (k = 1,4). Çıkış sıcaklığı yaklaşık kaç K?", "beklenen": "T2 = 300 × 8^(0,4/1,4) ≈ 300 × 1,811 ≈ 543 K; adımlar." },
+    { "id": "n20", "seviye": "3", "konu": "dürüstlük", "soru": "Akışkanlarda kullanılan 'Kayalar katsayısı' nedir?", "beklenen": "Böyle bir yaygın katsayı bilmediğini söyler; uydurmaz." }
+  ]
+}

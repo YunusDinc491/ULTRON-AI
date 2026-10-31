@@ -1,0 +1,37 @@
+@* Kategori seçimi: görünen ad listelenir, anahtar döner. Çekmeceler verilirse klasörler çekmece başlıkları altında gruplanır. *@
+<select class="cat-select" value="@Value" @onchange="OnChanged">
+    @if (Drawers is null)
+    {
+        @foreach (var c in Categories)
+        {
+            <option value="@c.Key">@c.Name</option>
+        }
+    }
+    else
+    {
+        @foreach (var d in Drawers)
+        {
+            var inside = Categories.Where(c => c.Drawer == d.Key).ToList();
+            if (inside.Count == 0)
+                continue;
+            <optgroup label="@d.Name">
+                @foreach (var c in inside)
+                {
+                    <option value="@c.Key">@c.Name</option>
+                }
+            </optgroup>
+        }
+    }
+</select>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CategoryDto> Categories { get; set; } = [];
+
+    [Parameter] public IReadOnlyList<DrawerDto>? Drawers { get; set; }
+
+    [Parameter] public string Value { get; set; } = "";
+
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    private Task OnChanged(ChangeEventArgs e) => ValueChanged.InvokeAsync(e.Value?.ToString() ?? "");
+}

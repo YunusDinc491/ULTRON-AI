@@ -1,0 +1,200 @@
+@* /belgeler: bilgi tabanındaki dosyalar (ders notları, PDF'ler, araştırma raporları). Ekle (ya da pencereye sürükle-bırak),
+   koleksiyonunu değiştir, aç, sil. Ultron "Termo II notlarımda…" gibi sorularda bu dosyalardan sayfa göstererek cevap verir. *@
+@using Ultron.Desktop.Services
+
+<aside class="panel memory-panel doc-panel">
+    <div class="panel-head">
+        <span class="panel-title">BELGELER@(_docs is null ? "" : $" · {_docs.Count} DOSYA")</span>
+        <button class="x" title="Kapat (Esc)" @onclick="OnClose">✕</button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="muted err-line">@_error</div>
+    }
+
+    <div class="mp-form">
+        <div class="mp-form-row">
+            <input class="mp-search" list="doc-collections" placeholder="Koleksiyon (ör. Termo II)" @bind="Collection" @bind:event="oninput" />
+            <label class="primary file-pick @(_uploading ? "busy" : "")">
+                @(_uploading ? "Ekleniyor… (resimli sayfalar birkaç dakika sürebilir)" : "+ Dosya ekle")
+                <InputFile OnChange="OnFilesAsync" multiple accept=".pdf,.docx,.txt,.md" disabled="@_uploading" />
+            </label>
+        </div>
+        <datalist id="doc-collections">
+            @foreach (var c in Collections)
+            {
+                <option value="@c"></option>
+            }
+        </datalist>
+        <div class="muted doc-hint">PDF, Word (.docx), .txt ve .md · en fazla 50 MB · dosyayı pencereye sürükleyip bırakabilirsin.</div>
+        @foreach (var line in _results)
+        {
+            <div class="doc-result @(line.Ok ? "" : "bad")">@line.Text</div>
+        }
+    </div>
+
+    @if (_docs is null)
+    {
+        <div class="muted">Yükleniyor…</div>
+    }
+    else if (_docs.Count == 0)
+    {
+        <div class="muted" style="margin-top:10px">Henüz belge yok. Ders notlarını ekle, sonra "Termo II notlarımda entropi tanımı ne?" diye sor.</div>
+    }
+    else
+    {
+        @foreach (var group in _docs.GroupBy(d => d.Collection).OrderBy(g => g.Key))
+        {
+            <div class="section">@group.Key.ToUpper(new System.Globalization.CultureInfo("tr-TR")) · @group.Count()</div>
+            @foreach (var d in group)
+            {
+                <div class="doc-row">
+                    <button class="doc-name" title="Aç: @d.Path" @onclick="() => DocumentOpener.Open(d.Path, null)">
+                        <span class="doc-kind">@KindLabel(d.Kind)</span>@d.FileName
+                    </button>
+                    <span class="muted doc-meta">@(d.PageCount > 0 ? $"{d.PageCount} sf · " : "")@d.ChunkCount parça · @d.AddedAtUtc.ToLocalTime().ToString("dd.MM")</span>
+                    @if (_moving == d.Id)
+                    {
+                        <input class="doc-move" list="doc-collections" @bind="_moveTo" @onkeydown="e => OnMoveKeyAsync(e, d)" placeholder="Yeni koleksiyon" />
+                        <button class="icon" title="Kaydet" @onclick="() => MoveAsync(d)">✓</button>
+                    }
+                    else
+                    {
+                        <button class="icon" title="Koleksiyonunu değiştir" @onclick="() => { _moving = d.Id; _moveTo = d.Collection; }">⇄</button>
+                    }
+                    <button class="icon" title="Baştan oku (resimli sayfalar için yazı tanıma)" disabled="@(_reprocessing is not null)" @onclick="() => ReprocessAsync(d)">@(_reprocessing == d.Id ? "…" : "↻")</button>
+                    <button class="icon @(_confirmDelete == d.Id ? "danger" : "")" title="@(_confirmDelete == d.Id ? "Emin misin? Tekrar tıkla" : "Sil")"
+                            @onclick="() => DeleteAsync(d)">@(_confirmDelete == d.Id ? "Sil?" : "🗑")</button>
+                </div>
+            }
+        }
+    }
+</aside>
+
+@code {
+    [Parameter, EditorRequired] public UltronClient Client { get; set; } = null!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>Yeni eklenen dosyaların koleksiyonu; son kullanılan hatırlanır (sürükle-bırak da bunu kullanır).</summary>
+    public static string Collection { get; set; } = "Genel";
+
+    private IReadOnlyList<DocumentDto>? _docs;
+    private readonly List<(bool Ok, string Text)> _results = [];
+    private string? _error;
+    private bool _uploading;
+    private long? _moving, _confirmDelete, _reprocessing;
+    private string _moveTo = "";
+
+    private IEnumerable<string> Collections => (_docs ?? []).Select(d => d.Collection).Append("Genel").Distinct().Order();
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _docs = await Client.ListDocumentsAsync();
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = "Belgeler alınamadı: " + ex.Message;
+        }
+    }
+
+    private async Task OnFilesAsync(InputFileChangeEventArgs e)
+    {
+        _uploading = true;
+        _results.Clear();
+        StateHasChanged();
+        foreach (var file in e.GetMultipleFiles(20))
+        {
+            var result = await Upload(Client, file, Collection);
+            _results.Add((result.Status is "Added", result.Message));
+            StateHasChanged();
+        }
+
+        _uploading = false;
+        await ReloadAsync();
+    }
+
+    /// <summary>Panel ve pencereye sürükle-bırak aynı yolu kullanır.</summary>
+    public static async Task<DocumentAddResultDto> Upload(UltronClient client, IBrowserFile file, string? collection)
+    {
+        try
+        {
+            await using var stream = file.OpenReadStream(maxAllowedSize: 50L * 1024 * 1024);
+            return await client.UploadDocumentAsync(file.Name, string.IsNullOrWhiteSpace(collection) ? null : collection.Trim(), stream);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or Microsoft.AspNetCore.SignalR.HubException or TaskCanceledException)
+        {
+            DesktopLog.Write($"Belge yüklenemedi ({file.Name}): {ex.Message}");
+            return new DocumentAddResultDto("Error", $"{file.Name} eklenemedi: {ex.Message}", null);
+        }
+    }
+
+    private async Task OnMoveKeyAsync(KeyboardEventArgs e, DocumentDto d)
+    {
+        if (e.Key == "Enter")
+            await MoveAsync(d);
+        else if (e.Key == "Escape")
+            _moving = null;
+    }
+
+    private async Task MoveAsync(DocumentDto d)
+    {
+        if (!string.IsNullOrWhiteSpace(_moveTo) && _moveTo.Trim() != d.Collection)
+        {
+            try { await Client.SetDocumentCollectionAsync(d.Id, _moveTo.Trim()); }
+            catch (Exception ex) { _error = "Taşınamadı: " + ex.Message; }
+        }
+
+        _moving = null;
+        await ReloadAsync();
+    }
+
+    private async Task ReprocessAsync(DocumentDto d)
+    {
+        _reprocessing = d.Id;
+        _results.Clear();
+        _results.Add((true, $"{d.FileName} baştan okunuyor… Resimli sayfalar varsa sayfa başına birkaç saniye sürebilir."));
+        StateHasChanged();
+        try
+        {
+            var result = await Client.ReprocessDocumentAsync(d.Id);
+            _results.Clear();
+            _results.Add((result.Status is "Added", result.Message));
+        }
+        catch (Exception ex)
+        {
+            _results.Clear();
+            _results.Add((false, "Okunamadı: " + ex.Message));
+        }
+
+        _reprocessing = null;
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(DocumentDto d)
+    {
+        if (_confirmDelete != d.Id)
+        {
+            _confirmDelete = d.Id;
+            return;
+        }
+
+        _confirmDelete = null;
+        try { await Client.DeleteDocumentAsync(d.Id); }
+        catch (Exception ex) { _error = "Silinemedi: " + ex.Message; }
+        await ReloadAsync();
+    }
+
+    private static string KindLabel(string kind) => kind switch
+    {
+        "Pdf" => "PDF",
+        "Word" => "DOC",
+        "Research" => "RAPOR",
+        _ => "TXT",
+    };
+}

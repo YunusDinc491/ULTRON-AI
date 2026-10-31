@@ -1,0 +1,7 @@
+{
+  "aciklama": "Öğretim 4 (05:45): tur5'te yanlış çıkan genel bilgiler.",
+  "sorular": [
+    { "id": "q01", "konu": "coğrafya", "soru": "Şunu bil, unutma: Türkiye sınırları içinde doğup denize dökülen en uzun nehir Kızılırmak'tır (yaklaşık 1355 km). Fırat ve Dicle daha uzundur ama Türkiye'de doğup Suriye ve Irak'tan geçerek Basra Körfezi'ne dökülür; Türkiye'deki bölümleri Kızılırmak'tan kısadır. 'Türkiye'nin en uzun nehri' sorusunun beklenen cevabı Kızılırmak'tır." },
+    { "id": "q02", "konu": "birim", "soru": "Şunu bil, unutma: 1 kilometre yaklaşık 0,621 mil, 1 mil yaklaşık 1,609 kilometredir. Kilometreyi mile çevirmek için 0,621 ile çarp (75 km ≈ 46,6 mil)." }
+  ]
+}

@@ -1,0 +1,135 @@
+@page "/dinle"
+@implements IDisposable
+@inject ChatSession Chat
+@inject VoiceRecorder Recorder
+@inject VoicePlayer Player
+@inject NavigationManager Nav
+
+<div class="screen listen">
+    <div class="topbar" style="width:100%">
+        <button class="icon-btn" @onclick="Close">✕</button>
+        <span class="brand"><b>Ultron</b></span>
+        <button class="icon-btn" @onclick='() => Nav.NavigateTo("/sohbet")'>⌨</button>
+    </div>
+
+    <div class="orb-wrap">
+        <div class="orb @OrbClass" style="transform: scale(@Scale)"></div>
+    </div>
+
+    <p class="state">@StateText</p>
+    <p class="heard">@_heard</p>
+
+    @if (_answer is { Text.Length: > 0 })
+    {
+        <div class="glass answer">@Markdown.Html(_answer.Text)</div>
+    }
+
+    <div class="bottom-actions">
+        <button class="icon-btn" @onclick="() => Player.Stop()" disabled="@(!Player.Speaking)">⏹</button>
+        <button class="mic-big @(Recorder.Recording ? "rec" : "")" @onclick="ToggleAsync" disabled="@_working">🎙</button>
+        <button class="icon-btn" @onclick='() => Nav.NavigateTo("/sohbet")'>💬</button>
+    </div>
+</div>
+
+@code {
+    private string _heard = "";
+    private ChatLine? _answer;
+    private bool _working;
+    private float _level;
+
+    private string StateText => Recorder.Recording ? "Dinliyorum…"
+        : _working ? (_answer is null ? "Anlıyorum…" : "Düşünüyor…")
+        : Player.Speaking ? "Konuşuyor…"
+        : _answer is null ? "Dokun ve konuş" : "Başka bir şey?";
+
+    private string OrbClass => Recorder.Recording ? "" : _working ? "thinking" : "idle";
+
+    private string Scale => (Recorder.Recording ? 1 + _level * 0.35f : 1f).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+    protected override void OnInitialized()
+    {
+        Recorder.Level += OnLevel;
+        Player.SpeakingChanged += OnSpeaking;
+        Chat.Changed += Refresh;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await ToggleAsync(); // ekran açılınca hemen dinlemeye başla
+    }
+
+    private async Task ToggleAsync()
+    {
+        if (Recorder.Recording)
+        {
+            Recorder.Stop();
+            return;
+        }
+        Player.Stop();
+        _heard = "";
+        _answer = null;
+        StateHasChanged();
+        var wav = await Recorder.RecordAsync();
+        if (wav is null)
+        {
+            _heard = "Bir şey duyamadım.";
+            StateHasChanged();
+            return;
+        }
+        _working = true;
+        StateHasChanged();
+        try
+        {
+            _heard = await Chat.TranscribeAsync(wav);
+            if (_heard.Length == 0)
+            {
+                _heard = "Anlayamadım, tekrar dener misin?";
+                return;
+            }
+            StateHasChanged();
+            var send = Chat.SendAsync(_heard, speak: true);
+            _answer = Chat.Lines.LastOrDefault(l => !l.FromUser);
+            await send;
+            _answer = Chat.Lines.LastOrDefault(l => !l.FromUser);
+        }
+        catch (Exception)
+        {
+            _heard = "Ultron'a ulaşılamadı.";
+        }
+        finally
+        {
+            _working = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Close()
+    {
+        Recorder.Stop();
+        Player.Stop();
+        Nav.NavigateTo("/");
+    }
+
+    private void OnLevel(float level)
+    {
+        _level = level;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnSpeaking(bool _) => InvokeAsync(StateHasChanged);
+
+    private void Refresh()
+    {
+        _answer = _working ? Chat.Lines.LastOrDefault(l => !l.FromUser) : _answer;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Recorder.Level -= OnLevel;
+        Player.SpeakingChanged -= OnSpeaking;
+        Chat.Changed -= Refresh;
+        Recorder.Stop();
+    }
+}

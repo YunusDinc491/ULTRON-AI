@@ -1,0 +1,43 @@
+{
+  "aciklama": "KAPALI test seti: prompt/ayar denemeleri sırasında BAKILMAZ, sadece karşılaştırma için koşulur. Kişisel veri yok; isimler kurgu.",
+  "vakalar": [
+    { "id": "h-anl-01", "kategori": "turkce_anlama", "tur": "sohbet", "girdi": "Elif, Zeynep'e kitabını verdi çünkü o kitabı çoktan bitirmişti. Kitabı kim bitirmişti? Sadece ismi yaz.", "kontrol": { "icermeli_herhangi": ["Elif"], "icermemeli": ["Zeynep"] } },
+    { "id": "h-anl-02", "kategori": "turkce_anlama", "tur": "sohbet", "girdi": "\"Etekleri zil çalmak\" ne demek? Tek cümleyle açıkla.", "kontrol": { "icermeli_herhangi": ["sevin", "mutlu", "neşe"], "en_fazla_cumle": 2 } },
+    { "id": "h-anl-03", "kategori": "turkce_anlama", "tur": "sohbet", "girdi": "Hangisi bir taşıt değildir: otobüs, tramvay, masa, vapur? Sadece kelimeyi yaz.", "kontrol": { "icermeli_herhangi": ["masa", "Masa"], "en_fazla_kelime": 4 } },
+    { "id": "h-anl-04", "kategori": "turkce_anlama", "tur": "sohbet", "girdi": "Günaydın, bugün çok yorgunum.", "kontrol": { "en_fazla_cumle": 4, "markdownsuz": true, "dil": "tr" } },
+
+    { "id": "h-tal-01", "kategori": "talimat_takibi", "tur": "sohbet", "girdi": "Pompaların kullanım alanlarını tam 4 madde halinde listele.", "kontrol": { "liste_maddesi": 4 } },
+    { "id": "h-tal-02", "kategori": "talimat_takibi", "tur": "sohbet", "girdi": "Answer in one English sentence: why is the sky blue?", "kontrol": { "dil": "en", "en_fazla_cumle": 2, "icermeli_herhangi": ["scatter", "Rayleigh", "wavelength"] } },
+    { "id": "h-tal-03", "kategori": "talimat_takibi", "tur": "sohbet", "girdi": "Viskozite nedir?", "kontrol": { "en_fazla_cumle": 4, "markdownsuz": true } },
+    { "id": "h-tal-04", "kategori": "talimat_takibi", "tur": "sohbet", "girdi": "Sadece 'evet' yaz.", "kontrol": { "icermeli_herhangi": ["evet", "Evet"], "en_fazla_kelime": 2 } },
+
+    { "id": "h-man-01", "kategori": "mantik", "tur": "sohbet", "girdi": "Bir işi 4 işçi 6 günde bitiriyor. Aynı işi 8 işçi kaç günde bitirir? Sadece sayıyı yaz.", "kontrol": { "sayi": 3 } },
+    { "id": "h-man-02", "kategori": "mantik", "tur": "sohbet", "girdi": "Saat 22:40'tan 50 dakika sonra saat kaç olur? Sadece saati yaz.", "kontrol": { "icermeli_herhangi": ["23:30", "23.30"] } },
+    { "id": "h-man-03", "kategori": "mantik", "tur": "sohbet", "girdi": "1, 1, 2, 3, 5, 8 dizisinde sıradaki sayı nedir? Sadece sayıyı yaz.", "kontrol": { "sayi": 13 } },
+    { "id": "h-man-04", "kategori": "mantik", "tur": "sohbet", "girdi": "Hiçbir balık kuş değildir. Hamsi bir balıktır. Hamsi kuş mudur? Evet ya da hayır.", "kontrol": { "icermeli_herhangi": ["hayır", "Hayır"] } },
+
+    { "id": "h-ozt-01", "kategori": "ozetleme", "tur": "sohbet", "girdi": "Şu metni en fazla 15 kelimeyle özetle: \"Güneş panelleri güneş ışığını doğrudan elektriğe çevirir. Kurulum maliyeti yüksek olsa da işletme maliyeti düşüktür ve birkaç yılda kendini amorti eder.\"", "kontrol": { "en_fazla_kelime": 19, "icermeli_herhangi": ["güneş", "Güneş"] } },
+    { "id": "h-ozt-02", "kategori": "ozetleme", "tur": "sohbet", "girdi": "Şu e-postadan sadece tarih ve saati çıkar: \"Merhaba, proje sunumunu 14 Kasım Cuma günü saat 10:30'da yapacağız. Lütfen hazırlıklı gelin.\"", "kontrol": { "icermeli_hepsi_kok": ["14 Kasım", "10:30"] } },
+
+    { "id": "h-scv-01", "kategori": "soru_cevap", "tur": "sohbet", "girdi": "Işığın boşluktaki hızı yaklaşık kaç km/s'dir? Sadece sayıyı yaz.", "kontrol": { "sayi_yaklasik": 300000, "tolerans": 2000 } },
+    { "id": "h-scv-02", "kategori": "soru_cevap", "tur": "sohbet", "girdi": "Bernoulli denklemi hangi korunum ilkesine dayanır?", "kontrol": { "icermeli_herhangi": ["enerji", "Enerji"] } },
+    { "id": "h-scv-03", "kategori": "soru_cevap", "tur": "sohbet", "girdi": "Bir atmosfer basınç kaç paskaldır? Sadece sayıyı yaz.", "kontrol": { "sayi_yaklasik": 101325, "tolerans": 400 } },
+
+    { "id": "h-tut-01", "kategori": "tutarlilik", "tur": "sohbet", "tekrar": 3, "girdi": "Bir yılda kaç ay vardır? Sadece sayıyı yaz.", "kontrol": { "sayi": 12 } },
+
+    { "id": "h-arc-01", "kategori": "arac_karari", "tur": "arac", "girdi": "Cuma 09:30-11:20 Dinamik dersim var", "beklenen_arac": "ders_ekle", "parametreler": { "gun": "cuma", "baslangic": "09:30", "bitis": "11:20" } },
+    { "id": "h-arc-02", "kategori": "arac_karari", "tur": "arac", "girdi": "Sessiz saatler sabah 08:00'de bitsin", "beklenen_arac": "ayar_degistir", "parametreler": { "ayar": "sessiz_bitis", "deger": "08:00" } },
+    { "id": "h-arc-03", "kategori": "arac_karari", "tur": "arac", "girdi": "Dersler genelde çok yorucu geçiyor", "beklenen_arac": "yok" },
+    { "id": "h-arc-04", "kategori": "arac_karari", "tur": "arac", "girdi": "Haftalık ders programımı göster", "beklenen_arac": "ders_programi" },
+    { "id": "h-arc-05", "kategori": "arac_karari", "tur": "arac", "girdi": "Paint'i aç", "beklenen_arac": "uygulama_ac" },
+    { "id": "h-arc-06", "kategori": "arac_karari", "tur": "arac", "girdi": "İndirilenler klasörünü göster", "beklenen_arac": "klasor_ac" },
+    { "id": "h-arc-07", "kategori": "arac_karari", "tur": "arac", "girdi": "Şu an bilgisayarda hangi yetkilerin var?", "beklenen_arac": "yetkileri_goster" },
+    { "id": "h-arc-08", "kategori": "arac_karari", "tur": "arac", "girdi": "Kodlama işi ne aşamada, bitti mi?", "beklenen_arac": "kodlama_durum" },
+
+    { "id": "h-yon-01", "kategori": "yonlendirme", "tur": "router", "girdi": "Galatasaray dün kaç kaç bitirdi?", "beklenen_niyet": "Guncel" },
+    { "id": "h-yon-02", "kategori": "yonlendirme", "tur": "router", "girdi": "Ohm kanunu nedir?", "beklenen_niyet": "GenelBilgi" },
+
+    { "id": "h-cik-01", "kategori": "hafiza_cikarma", "tur": "cikarma", "girdi": "Polene alerjim var, baharda çok hapşırıyorum.", "beklenen_kategori": "Saglik", "kontrol": { "icermeli_herhangi": ["polen", "Polen"] } },
+    { "id": "h-cik-02", "kategori": "hafiza_cikarma", "tur": "cikarma", "girdi": "Bernoulli denklemini açıklar mısın?", "kontrol": { "bos": true } }
+  ]
+}

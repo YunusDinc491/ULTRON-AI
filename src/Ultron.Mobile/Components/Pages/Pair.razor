@@ -1,0 +1,62 @@
+@page "/eslestir"
+@inject UltronConnection Connection
+@inject NavigationManager Nav
+
+<div class="screen">
+    <div class="topbar"><span class="brand"><b>Ultron</b></span></div>
+
+    <div class="greeting">
+        <h1>Bilgisayarındaki<br />Ultron'a bağlan</h1>
+        <p>Hafızan ve sohbetlerin bilgisayarda kalır; telefon kumanda gibi çalışır.</p>
+    </div>
+
+    <div class="glass form">
+        <label>
+            Bilgisayarın Tailscale adresi
+            <input @bind="_address" placeholder="100.x.x.x" inputmode="decimal" autocomplete="off" />
+        </label>
+        <label>
+            Eşleşme kodu (6 haneli)
+            <input class="code-input" @bind="_code" maxlength="6" inputmode="numeric" placeholder="······" autocomplete="one-time-code" />
+        </label>
+        <label>
+            Cihaz adı
+            <input @bind="_name" placeholder="Telefonum" />
+        </label>
+        @if (_error is not null)
+        {
+            <p class="error">@_error</p>
+        }
+        <button class="btn" disabled="@_busy" @onclick="PairAsync">@(_busy ? "Bağlanıyor…" : "Eşleştir")</button>
+    </div>
+
+    <div class="hint">
+        Kodu nereden alırım?
+        <ol>
+            <li>Bilgisayarda Ultron → logo menüsü → <b>Mobil</b>.</li>
+            <li><b>Telefon ekle</b>'ye bas; 6 haneli kod 10 dakika geçerli.</li>
+            <li>Adres aynı ekranda yazar (100. ile başlar).</li>
+        </ol>
+    </div>
+</div>
+
+@code {
+    private string _address = "", _code = "", _name = DeviceInfo.Current.Name;
+    private string? _error;
+    private bool _busy;
+
+    private async Task PairAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_address) || _code.Trim().Length != 6)
+        {
+            _error = "Adresi ve 6 haneli kodu yaz.";
+            return;
+        }
+        _busy = true;
+        _error = null;
+        _error = await Connection.PairAsync(_address, _code, string.IsNullOrWhiteSpace(_name) ? DeviceInfo.Current.Name : _name.Trim());
+        _busy = false;
+        if (_error is null)
+            Nav.NavigateTo("/", replace: true);
+    }
+}

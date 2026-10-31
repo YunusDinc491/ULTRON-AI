@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Windows sürümü belirtilmeli: BlazorWebView'in WebView2 kontrolü Windows SDK projeksiyonuna (Microsoft.Windows.SDK.NET) ihtiyaç duyuyor. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- Sadece tepsi ikonu (NotifyIcon) için. WPF tipleriyle (Application, Color…) çakışmasın diye otomatik using'leri kaldırıyoruz. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>Ultron.Desktop</RootNamespace>
+    <AssemblyName>Ultron</AssemblyName>
+    <!-- Exe ikonu: Ultron kaskı (UltronEmblem'den üretildi, uygulamayı ikon-yaz argümanıyla çalıştırarak). -->
+    <ApplicationIcon Condition="Exists('ultron.ico')">ultron.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ULTRON başlığı için Michroma (SIL OFL, Widget/Michroma-OFL.txt). -->
+    <Resource Include="Widget/Michroma-Regular.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ultron.Contracts\Ultron.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.5.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="10.0.120" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.14" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="10.0.14" />
+  </ItemGroup>
+
+</Project>

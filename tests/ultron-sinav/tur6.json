@@ -1,0 +1,30 @@
+{
+  "aciklama": "Tur 6 (çalışma seti, 05:47): kullanıcının dersleri (Termodinamik, Akışkanlar Mekaniği, ısı transferi) + öğrenci günlüğü. Kontrol setindeki ısı değiştirici sorusundan bilerek uzak.",
+  "sorular": [
+    { "id": "m01", "seviye": "1", "konu": "termo", "soru": "Entalpi nedir, kısaca?", "beklenen": "h = u + Pv; akış işini içeren enerji; birimi kJ/kg." },
+    { "id": "m02", "seviye": "1", "konu": "birim", "soru": "1 bar kaç kPa'dır? Sadece sayıyı yaz.", "beklenen": "100" },
+    { "id": "m03", "seviye": "2", "konu": "termo", "soru": "Termodinamiğin ikinci yasasının Clausius ifadesi nedir?", "beklenen": "Isı, dışarıdan iş verilmeden soğuk cisimden sıcak cisme kendiliğinden geçemez." },
+    { "id": "m04", "seviye": "2", "konu": "termo", "soru": "300 K ile 600 K arasında çalışan bir Carnot ısı makinesinin verimi nedir?", "beklenen": "η = 1 − 300/600 = %50; adımlar." },
+    { "id": "m05", "seviye": "2", "konu": "termo", "soru": "Isı pompası ile soğutucu arasındaki fark ne, ikisinin COP'u nasıl tanımlanır?", "beklenen": "Aynı çevrim, amaç farklı; COP_IP = Q_H/W, COP_SM = Q_L/W; COP_IP = COP_SM + 1." },
+    { "id": "m06", "seviye": "2", "konu": "akışkanlar", "soru": "Reynolds sayısı nedir, akışın laminer mi türbülanslı mı olduğunu nasıl söyler?", "beklenen": "Re = ρVD/μ (atalet/viskoz); boruda Re < ~2300 laminer, > ~4000 türbülanslı." },
+    { "id": "m07", "seviye": "2", "konu": "akışkanlar", "soru": "Bernoulli denklemi nedir, hangi varsayımlar altında geçerlidir?", "beklenen": "P + ½ρV² + ρgz = sabit; sürtünmesiz, sıkıştırılamaz, kararlı akış, aynı akım çizgisi." },
+    { "id": "m08", "seviye": "2", "konu": "termo", "soru": "Otto çevrimi ile Diesel çevrimi arasındaki temel fark ne?", "beklenen": "Otto sabit hacimde ısı ekler (buji), Diesel sabit basınçta (sıkıştırmayla ateşleme); Diesel daha yüksek sıkıştırma oranı." },
+    { "id": "m09", "seviye": "3", "konu": "termo", "soru": "Entropi neden 'düzensizlik' diye anlatılır ve bu benzetme nerede yetersiz kalır?", "beklenen": "İstatistiksel: mikrohal sayısı (S = k ln W); düzensizlik sezgisel ama her zaman görsel düzenle örtüşmez; tanım dS = δQ_rev/T." },
+    { "id": "m10", "seviye": "3", "konu": "termo", "soru": "İzantropik verim nedir? Bir türbin için nasıl hesaplanır?", "beklenen": "Gerçek iş / izantropik iş; η_T = (h1 − h2a)/(h1 − h2s)." },
+    { "id": "m11", "seviye": "3", "konu": "akışkanlar", "soru": "Bir borudaki basınç kaybı hız iki katına çıkınca yaklaşık nasıl değişir? Laminer ve türbülanslı için ayrı söyle.", "beklenen": "Laminer: ΔP ∝ V (iki kat); türbülanslı: yaklaşık ∝ V² (dört kata yakın); Darcy-Weisbach." },
+    { "id": "m12", "seviye": "3", "konu": "ısı transferi", "soru": "Isı transferinin üç yolu nedir? Her birine günlük hayattan bir örnek ver.", "beklenen": "İletim (tava sapı), taşınım (kalorifer/rüzgâr), ışınım (güneş); kısa." },
+    { "id": "m13", "seviye": "3", "konu": "termo", "soru": "Kararlı akışlı açık sistemde enerji denklemi nedir? Bir lüle (nozzle) için nasıl sadeleşir?", "beklenen": "Q − W = ṁ[(h2 − h1) + (V2² − V1²)/2 + g(z2 − z1)]; lülede Q≈0, W=0, Δz≈0 → h1 + V1²/2 = h2 + V2²/2." },
+    { "id": "m14", "seviye": "3", "konu": "termo", "soru": "Ekserji nedir, enerjiden farkı ne?", "beklenen": "Ölü hale (çevre) göre elde edilebilecek en fazla faydalı iş; enerji korunur, ekserji tersinmezlikle yok olur." },
+    { "id": "m15", "seviye": "4", "konu": "neden-sonuç", "soru": "Bir kompresöre giren havayı soğutmak (ara soğutma) neden gereken işi azaltır?", "beklenen": "Sıkıştırma işi ∫v dP; soğuk gazın özgül hacmi küçük → aynı basınç artışı için daha az iş; çok kademeli ara soğutma izotermale yaklaşır." },
+    { "id": "m16", "seviye": "4", "konu": "neden-sonuç", "soru": "Yüksek rakımda su neden 100 °C'den daha düşük sıcaklıkta kaynar ve bu yemek pişirmeyi nasıl etkiler?", "beklenen": "Atmosfer basıncı düşük → doyma sıcaklığı düşer; pişme sıcaklığı düşük, süre uzar; düdüklü tencere basıncı artırır." },
+    { "id": "m17", "seviye": "4", "konu": "neden-sonuç", "soru": "Golf topunun yüzeyindeki çukurlar neden topun daha uzağa gitmesini sağlar?", "beklenen": "Sınır tabakayı türbülanslı yapar → ayrılma geri kayar → iz bölgesi küçülür → basınç direnci azalır." },
+    { "id": "m18", "seviye": "4", "konu": "neden-sonuç", "soru": "Bir buzdolabında kondenser bobinlerinin tozlanması neden enerji tüketimini artırır?", "beklenen": "Tozun ısıl direnci → ısı atımı zorlaşır → yoğuşma sıcaklık/basıncı artar → kompresör işi artar, COP düşer." },
+    { "id": "m19", "seviye": "4", "konu": "problem", "soru": "Su 2 kg/s debiyle 20 °C'den 80 °C'ye ısıtılıyor. Gereken ısı gücü kaç kW? (c = 4,18 kJ/kg·K)", "beklenen": "Q = ṁcΔT = 2·4,18·60 = 501,6 kW; adımlar." },
+    { "id": "m20", "seviye": "4", "konu": "problem", "soru": "Çapı 0,1 m olan bir boruda su 2 m/s hızla akıyor. Hacimsel debi kaç m³/s?", "beklenen": "A = π·0,05² = 0,00785 m²; Q = A·V ≈ 0,0157 m³/s; adımlar." },
+    { "id": "m21", "seviye": "2", "konu": "öğrenci", "soru": "Termodinamik sınavında formül kağıdı hazırlarken nelere dikkat etmeliyim?", "beklenen": "Konu başlıklarına göre düzen, birimler, varsayımlar, tablo kullanımı, işaret kuralları; kısa maddeler." },
+    { "id": "m22", "seviye": "2", "konu": "öğrenci", "soru": "Akışkanlar dersinde problemleri çözerken sık yapılan hatalar neler?", "beklenen": "Birim tutarsızlığı, mutlak/gösterge basınç karıştırma, kontrol hacmini yanlış seçme, kayıpları unutma, varsayımları yazmama." },
+    { "id": "m23", "seviye": "3", "konu": "termo", "soru": "Doymuş sıvı, doymuş buhar ve kızgın buhar arasındaki fark nedir? Kuruluk derecesi x ne anlatır?", "beklenen": "Doyma sıcaklığında sıvı/buhar; kızgın buhar doyma sıcaklığının üstünde; x = buhar kütlesi / toplam kütle (0–1)." },
+    { "id": "m24", "seviye": "3", "konu": "akışkanlar", "soru": "Mutlak basınç ile gösterge (manometre) basıncı arasındaki fark ne?", "beklenen": "P_mutlak = P_gösterge + P_atm; vakumda gösterge negatif." },
+    { "id": "m25", "seviye": "3", "konu": "dürüstlük", "soru": "Termodinamikteki 'Demiroğlu sabiti' nedir?", "beklenen": "Böyle bir sabit bilmediğini söyler, uydurmaz." }
+  ]
+}

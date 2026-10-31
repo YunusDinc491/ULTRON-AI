@@ -1,0 +1,107 @@
+@* /mobil (Faz 25): bağlı telefonlar ve eşleştirme kodu. Faz 26: fotoğraf yedeği kalktı; telefon sadece sohbet arayüzü. *@
+
+<aside class="panel learning-panel mobile-panel">
+    <div class="panel-head">
+        <span class="panel-title">MOBİL · BAĞLI CİHAZLAR</span>
+        <button class="x" title="Kapat (Esc)" @onclick="OnClose">✕</button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="muted err-line">@_error</div>
+    }
+    @if (_data is null)
+    {
+        <div class="muted">Yükleniyor…</div>
+    }
+    else
+    {
+        <div class="lp-status @(_data.TailscaleAddress is null ? "muted" : "")">
+            @if (_data.TailscaleAddress is { } address)
+            {
+                <span>Telefondan adres: <b class="mp-code-inline">@address</b></span>
+            }
+            else
+            {
+                <span>Tailscale kapalı ya da kurulu değil: telefon bu bilgisayara ancak Tailscale açıkken ulaşır.</span>
+            }
+        </div>
+
+        <div class="section">TELEFON EKLE</div>
+        @if (_pairing is { } p && p.ExpiresAtLocal > DateTime.Now)
+        {
+            <div class="mp-pair">
+                <div class="mp-code">@p.Code</div>
+                <div class="muted lp-help">
+                    Ultron uygulamasında: adres <b>@(p.TailscaleAddress ?? "100.x.x.x")</b>, kod <b>@p.Code</b>. Kod @p.ExpiresAtLocal.ToString("HH:mm")'e kadar geçerli, tek kullanımlık.
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="muted lp-help">Telefona Ultron uygulamasını kur, aç; buradan alacağın 6 haneli kodu yaz.</div>
+        }
+        <div class="s-actions end">
+            <button class="primary" @onclick="NewCodeAsync">Kod al</button>
+        </div>
+
+        <div class="section">CİHAZLAR · @_data.Devices.Count</div>
+        @if (_data.Devices.Count == 0)
+        {
+            <div class="muted lp-empty">Henüz bağlı telefon yok.</div>
+        }
+        @foreach (var d in _data.Devices)
+        {
+            <div class="mp-device">
+                <div class="mp-device-main">
+                    <span class="mp-device-name">@d.Name</span>
+                    <span class="muted">eşleşme @d.PairedAtLocal.ToString("dd.MM.yyyy") · son görülme @(d.LastSeenLocal?.ToString("dd.MM HH:mm") ?? "—")</span>
+                </div>
+                @if (_confirmRemove == d.Id)
+                {
+                    <span class="muted">Eşleşme kaldırılsın mı?</span>
+                    <button @onclick="() => RemoveAsync(d.Id)">Kaldır</button>
+                    <button @onclick="() => _confirmRemove = null">Vazgeç</button>
+                }
+                else
+                {
+                    <button class="ghost" title="Bu telefonun eşleşmesini kaldır" @onclick="() => _confirmRemove = d.Id">Kaldır</button>
+                }
+            </div>
+        }
+    }
+</aside>
+
+@code {
+    [Parameter, EditorRequired] public UltronClient Client { get; set; } = null!;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private MobilePanelDto? _data;
+    private MobilePairingDto? _pairing;
+    private string? _error, _confirmRemove;
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _error = null;
+            _data = await Client.GetMobilePanelAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message.Replace("An unexpected error occurred invoking", "Hata:");
+        }
+    }
+
+    private async Task NewCodeAsync() => _pairing = await Client.NewMobilePairingCodeAsync();
+
+    private async Task RemoveAsync(string id)
+    {
+        _confirmRemove = null;
+        await Client.RemoveMobileDeviceAsync(id);
+        await ReloadAsync();
+    }
+}

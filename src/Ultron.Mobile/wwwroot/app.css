@@ -1,0 +1,195 @@
+/* Ultron mobil (Faz 25): referans görselin cam kartlı düzeni, Claude tonlarında (sıcak koyu zemin, kiremit vurgu). */
+:root {
+    --bg: #1c1b19;
+    --bg-2: #262522;
+    --glass: rgba(255, 248, 240, 0.06);
+    --glass-strong: rgba(255, 248, 240, 0.10);
+    --line: rgba(255, 248, 240, 0.10);
+    --text: #f4f1ea;
+    --muted: #a9a49a;
+    --accent: #d97757;
+    --accent-2: #e8a27f;
+    --accent-soft: rgba(217, 119, 87, 0.16);
+    --ok: #8fbf8a;
+    --warn: #e0b45c;
+    --radius: 22px;
+    --serif: "Noto Serif", Georgia, "Times New Roman", serif;
+    --sans: "Roboto", "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    overscroll-behavior: none;
+}
+
+body::before {
+    /* sıcak ışık hüzmesi: cam kartların arkasında hafif renk */
+    content: "";
+    position: fixed;
+    inset: -20% -30% auto -30%;
+    height: 70%;
+    background: radial-gradient(closest-side, rgba(217, 119, 87, 0.28), transparent 70%),
+                radial-gradient(closest-side at 80% 60%, rgba(232, 162, 127, 0.14), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+#app { position: relative; z-index: 1; height: 100%; }
+
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+input, textarea { font: inherit; color: var(--text); }
+
+.shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+
+.screen { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 18px 18px 22px; gap: 16px; }
+.scroll { flex: 1; overflow-y: auto; min-height: 0; }
+
+/* ---- üst çubuk ---- */
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.brand { font-family: var(--serif); font-size: 22px; letter-spacing: .5px; }
+.brand b { color: var(--accent); font-weight: 600; }
+.icon-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--glass); border: 1px solid var(--line);
+    font-size: 18px;
+}
+.icon-btn.accent { background: var(--accent); border-color: transparent; color: #1c1b19; }
+.pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 999px;
+    background: var(--glass); border: 1px solid var(--line);
+    font-size: 13px; color: var(--muted);
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.ok { background: var(--ok); }
+.dot.warn { background: var(--warn); }
+
+/* ---- cam kart ---- */
+.glass {
+    background: var(--glass);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+/* ---- ana ekran ---- */
+.greeting h1 { font-family: var(--serif); font-weight: 400; font-size: 32px; margin: 6px 0 4px; line-height: 1.15; }
+.greeting p { margin: 0; color: var(--muted); }
+
+.start-card {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px; text-align: left; width: 100%;
+    background: linear-gradient(135deg, rgba(217, 119, 87, 0.30), rgba(217, 119, 87, 0.08));
+}
+.start-card h2 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+.start-card span { color: var(--muted); font-size: 14px; }
+.start-card .arrow { width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: #1c1b19; display: grid; place-items: center; font-size: 22px; flex: none; }
+
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.card { padding: 16px 12px; text-align: left; display: flex; flex-direction: column; gap: 10px; min-height: 112px; }
+.card .ico { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-2); font-size: 18px; }
+.card b { font-size: 15px; font-weight: 600; }
+.card small { color: var(--muted); font-size: 12px; }
+
+.section-title { display: flex; justify-content: space-between; align-items: baseline; margin: 6px 2px 0; }
+.section-title h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.section-title a, .link { color: var(--accent-2); font-size: 14px; text-decoration: none; }
+
+.history { display: flex; flex-direction: column; gap: 10px; }
+.history-item { display: flex; gap: 12px; align-items: center; padding: 14px 16px; text-align: left; width: 100%; }
+.history-item .ico { width: 34px; height: 34px; border-radius: 50%; background: var(--glass-strong); display: grid; place-items: center; flex: none; }
+.history-item div { min-width: 0; }
+.history-item b { display: block; font-weight: 500; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-item small { color: var(--muted); font-size: 12px; }
+.empty { color: var(--muted); font-size: 14px; padding: 16px; text-align: center; }
+
+/* ---- paket seçici ---- */
+.tiers { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--glass); border: 1px solid var(--line); }
+.tiers button { padding: 6px 12px; border-radius: 999px; font-size: 13px; color: var(--muted); }
+.tiers button.on { background: var(--accent); color: #1c1b19; font-weight: 600; }
+
+/* ---- dinleme ekranı ---- */
+.listen { align-items: center; text-align: center; }
+.orb-wrap { flex: 1; display: grid; place-items: center; width: 100%; }
+.orb {
+    width: 210px; height: 210px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #f6c8ae 0%, var(--accent) 38%, #7a3a26 75%, #3a1d14 100%);
+    box-shadow: 0 0 60px rgba(217, 119, 87, 0.45), inset 0 -18px 40px rgba(0, 0, 0, 0.35);
+    transition: transform 120ms ease-out;
+}
+.orb.idle { animation: breathe 3.2s ease-in-out infinite; }
+.orb.thinking { animation: spin 2.4s linear infinite; filter: saturate(.8); }
+@keyframes breathe { 50% { transform: scale(1.05); } }
+@keyframes spin { 50% { transform: scale(.94) rotate(180deg); } 100% { transform: rotate(360deg); } }
+.listen .state { font-family: var(--serif); font-size: 26px; margin: 0; }
+.listen .heard { color: var(--muted); min-height: 48px; max-width: 320px; margin: 0 auto; }
+.listen .answer { max-height: 30vh; overflow-y: auto; text-align: left; padding: 16px; width: 100%; font-size: 15px; line-height: 1.5; }
+.bottom-actions { display: flex; justify-content: center; align-items: center; gap: 28px; width: 100%; }
+.mic-big { width: 72px; height: 72px; border-radius: 50%; background: var(--accent); color: #1c1b19; font-size: 28px; box-shadow: 0 8px 30px rgba(217, 119, 87, 0.45); }
+.mic-big.rec { background: #e45c4a; }
+
+/* ---- sohbet ---- */
+.chat-head { display: flex; align-items: center; gap: 10px; }
+.chat-head .title { flex: 1; min-width: 0; }
+.chat-head .title b, .chat-head .title small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-head .title b { display: block; font-family: var(--serif); font-size: 19px; font-weight: 500; }
+.chat-head .title small { color: var(--muted); font-size: 12px; }
+.messages { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 8px; }
+.bubble { max-width: 86%; padding: 12px 15px; border-radius: 20px; line-height: 1.5; font-size: 15px; word-wrap: break-word; }
+.bubble.me { align-self: flex-end; background: var(--accent); color: #1c1b19; border-bottom-right-radius: 6px; }
+.bubble.ai { align-self: flex-start; background: var(--glass-strong); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
+.bubble .status { color: var(--muted); font-size: 13px; font-style: italic; }
+.bubble p { margin: 0 0 8px; } .bubble p:last-child { margin: 0; }
+.bubble code { background: rgba(0,0,0,.3); padding: 1px 5px; border-radius: 6px; font-size: 13px; }
+.bubble pre { background: rgba(0,0,0,.35); padding: 10px; border-radius: 10px; overflow-x: auto; font-size: 13px; white-space: pre; }
+.typing::after { content: "▍"; animation: blink 1s steps(2) infinite; color: var(--accent); }
+@keyframes blink { 50% { opacity: 0; } }
+
+.composer { display: flex; align-items: flex-end; gap: 8px; padding: 8px; border-radius: 26px; }
+.composer textarea { flex: 1; background: none; border: 0; outline: none; resize: none; padding: 9px 8px; max-height: 120px; line-height: 1.4; }
+.composer textarea::placeholder { color: var(--muted); }
+
+/* ---- form (eşleşme) ---- */
+.form { display: flex; flex-direction: column; gap: 14px; padding: 20px; }
+.form label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+.form input { background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 14px; padding: 13px 14px; outline: none; }
+.form input:focus { border-color: var(--accent); }
+.code-input { letter-spacing: 8px; font-size: 22px; text-align: center; }
+.btn { padding: 14px; border-radius: 16px; background: var(--accent); color: #1c1b19; font-weight: 600; font-size: 16px; }
+.btn:disabled { opacity: .5; }
+.btn.ghost { background: var(--glass); color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+.error { color: #f09a8a; font-size: 14px; margin: 0; }
+.hint { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0; }
+.hint ol { margin: 6px 0 0; padding-left: 20px; }
+
+/* ---- ders ---- */
+.lesson-item { display: flex; justify-content: space-between; align-items: center; padding: 16px; text-align: left; width: 100%; }
+.lesson-item b { display: block; font-weight: 600; }
+.lesson-item small { color: var(--muted); font-size: 12px; }
+.chip { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-2); }
+
+/* ---- menü ---- */
+.menu { position: absolute; right: 18px; top: 64px; z-index: 5; display: flex; flex-direction: column; min-width: 210px; padding: 6px; background: var(--bg-2); }
+.menu button { text-align: left; padding: 12px 14px; border-radius: 14px; }
+.menu button:active { background: var(--glass-strong); }
+
+#blazor-error-ui {
+    display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+    padding: 12px 16px; background: #5a2a20; color: var(--text); font-size: 14px;
+}
+#blazor-error-ui .reload { color: var(--accent-2); }
+#blazor-error-ui .dismiss { float: right; cursor: pointer; }

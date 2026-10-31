@@ -1,0 +1,1512 @@
+﻿@* ULTRON HUD (tasarım kararı): ortada Three.js nöral toz çekirdeği, üstte ince bilgi çubuğu,
+   solda gerçek sistem telemetrisi (CPU, RAM, GPU, disk, pil, Ultron'un o anki işi), sağda sohbet kaydı, altta komut ve ses konsolu.
+   Çekirdek kullanıcı yazarken/konuşurken genişler, Ultron düşünürken/konuşurken küçülüp sese göre titreşir. *@
+@implements IDisposable
+@using System.IO
+@inject UltronClient Client
+@inject HostLauncher Launcher
+@inject IJSRuntime JS
+
+<div class="hud-root">
+    <div class="core" @ref="_core"></div>
+
+    <div class="reticle" id="hud-reticle">
+        <svg class="ring-a" viewBox="0 0 500 500">
+            <circle cx="250" cy="250" r="238" fill="none" stroke="#00f0ff" stroke-width="0.7" stroke-dasharray="4 14" />
+            <circle cx="250" cy="250" r="226" fill="none" stroke="#0088ff" stroke-width="1" stroke-dasharray="60 180 20 90" />
+            <path d="M 250 6 L 250 18 M 250 482 L 250 494 M 6 250 L 18 250 M 482 250 L 494 250" stroke="#00f0ff" stroke-width="1.5" />
+        </svg>
+        <svg class="ring-b" viewBox="0 0 400 400">
+            <circle cx="200" cy="200" r="188" fill="none" stroke="#ff6a00" stroke-width="1.2" stroke-dasharray="35 120 12 80" />
+            <circle cx="200" cy="200" r="175" fill="none" stroke="#ffaa00" stroke-width="0.6" stroke-dasharray="2 10" />
+        </svg>
+    </div>
+
+    @* Üst çubuk aynı zamanda pencerenin başlık çubuğu: boş yerinden sürüklenir (büyük pencerede), çift tık = panel ⇄ pencere. *@
+    @if (_menuOpen)
+    {
+        @* Üst çubuğun backdrop-filter'ı fixed katmanı kendi içine hapseder; dışarı tıklayınca kapanma katmanı çubuğun dışında. *@
+        <div class="brand-menu-backdrop" @onclick="() => _menuOpen = false"></div>
+    }
+    <header class="topbar" id="topbar">
+        @* (2026-10-29): üst çubukta sadece DERS ve İŞ; geri kalanlar logoya basınca açılan menüde. *@
+        <div class="brand">
+            <div>
+                <button class="title-row brand-btn" title="Menü" aria-haspopup="menu" aria-expanded="@_menuOpen" @onclick="() => _menuOpen = !_menuOpen">
+                    <img class="emblem @(_failed ? "err" : "")" src="img/ultron-emblem.png" alt="" draggable="false" />
+                    <h1>ULTRON</h1>
+                    <span class="brand-caret @(_menuOpen ? "open" : "")">▾</span>
+                    @if (_learningCount > 0)
+                    {
+                        <span class="brand-badge" title="Bekleyen öğrenme önerisi">@_learningCount</span>
+                    }
+                </button>
+                <p class="mono sub">ÇEKİRDEK: <span id="hud-mode">DENGE MODU (1.00x)</span></p>
+            </div>
+            @if (_menuOpen)
+            {
+                <nav class="brand-menu" role="menu">
+                    <button role="menuitem" class="bm-item orange" @onclick='() => MenuAsync(() => RunCommandAsync("/yeni"))'>[YENİ KONUŞMA]</button>
+                    <button role="menuitem" class="bm-item" title="Sistem durumu" @onclick='() => MenuAsync(() => RunCommandAsync("/durum"))'>[DURUM]</button>
+                    <button role="menuitem" class="bm-item" title="Hafıza paneli" @onclick='() => MenuAsync(() => RunCommandAsync("/hafiza"))'>[HAFIZA]</button>
+                    <button role="menuitem" class="bm-item" title="Belgeler (ders notları, PDF, raporlar)" @onclick='() => MenuAsync(() => RunCommandAsync("/belgeler"))'>[BELGELER]</button>
+                    <button role="menuitem" class="bm-item" title="Öğrenme: düzeltmeler, PRO ve web'den öğrenilenler, bildiğim siteler" @onclick='() => MenuAsync(() => RunCommandAsync("/ogrenme"))'>[ÖĞRENME@(_learningCount > 0 ? $" {_learningCount}" : "")]</button>
+                    <button role="menuitem" class="bm-item" title="Bağlı telefonlar ve eşleştirme kodu" @onclick='() => MenuAsync(() => RunCommandAsync("/mobil"))'>[MOBİL]</button>
+                    <button role="menuitem" class="bm-item" title="Kurulum sihirbazı: yapay zekâ motoru, ses, web araması, hitap, ses örnekleri" @onclick='() => MenuAsync(() => RunCommandAsync("/kurulum"))'>[KURULUM]</button>
+                    <button role="menuitem" class="bm-item mode" title="Gelişim: Ultron ne kadar öğreniyor, haftalık grafikler, gece raporları" @onclick="() => MenuAsync(EnterGrowthAsync)">[GELİŞİM ›]</button>
+                </nav>
+            }
+        </div>
+        @* Üç sekme (2026-10-31): üst çubuk her ekranda sabit, seçilen ekran altında piksel geçişiyle değişir. *@
+        <nav class="cmds tabs" role="tablist" aria-label="Arayüz">
+            <button role="tab" aria-selected="@(CurrentView == "is")" class="cmd mode @(CurrentView == "is" ? "on" : "")" title="İş: bileşen üret, canlı önizle" @onclick="EnterStudioAsync">[İŞ]</button>
+            <button role="tab" aria-selected="@(CurrentView == "ana")" class="cmd mode @(CurrentView == "ana" ? "on" : "")" title="Ultron: sohbet, sistem ve günün özeti" @onclick='() => GoAsync("ana")'>[ULTRON]</button>
+            <button role="tab" aria-selected="@(CurrentView == "ders")" class="cmd mode @(CurrentView == "ders" ? "on" : "")" title="Okul: kaynaklardan anlatım, quiz, sınav planı" @onclick="EnterLessonAsync">[OKUL]</button>
+        </nav>
+        <div class="right">
+            <button class="sound-toggle" title="Sesli yanıt ve HUD sesleri" @onclick="ToggleSound">
+                <span class="sdot @(_soundOn ? "on" : "")"></span><span>SES: @(_soundOn ? "AÇIK" : "KAPALI")</span>
+            </button>
+            <div class="clock mono">
+                <div id="hud-clock">--:--:--</div>
+                <div class="tag">ULTRON // NEURAL NET</div>
+            </div>
+            <div class="winbtns">
+                <button title="Çerçevesiz tam ekran (F11)" @onclick="WindowBridge.ToggleFullScreen">⛶</button>
+                <button title="Kenar paneli ⇄ büyük pencere" @onclick="WindowBridge.TogglePanelMode">⤢</button>
+                <button title="Simgeye küçült" @onclick="WindowBridge.HideWindow">—</button>
+                <button class="close" title="Kapat (simge ekranda kalır)" @onclick="WindowBridge.HideWindow">✕</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="banner-wrap">
+        <div class="banner">
+            <span class="pdot @BannerClass"></span>
+            <span class="mono banner-title @BannerClass @BannerState.ToLowerInvariant()" title="@_status">ULTRON <b>@BannerState</b></span>
+        </div>
+    </div>
+
+    @* Kodlama şeridi (Faz 13): Claude Code'a verilen işin ilerlemesi; soru sorarsa cevap kutusu, bitince özet. *@
+    @if (_coding is { } job && !_codingDismissed)
+    {
+        <div class="coding-strip @job.Status.ToLowerInvariant()">
+            <div class="cs-head mono">
+                <span>💻 KODLAMA #@job.Id · @job.Title.ToUpper(new System.Globalization.CultureInfo("tr-TR")) · @CodingLabel(job.Status)</span>
+                @if (job.Status == "Calisiyor")
+                {
+                    <button class="cs-btn" @onclick="CancelCodingAsync">DURDUR</button>
+                }
+                else
+                {
+                    <button class="cs-btn" title="Proje klasörünü aç" @onclick="() => DocumentOpener.Open(job.Folder, null)">KLASÖR</button>
+                    <button class="cs-btn" title="Kapat" @onclick="() => _codingDismissed = true">✕</button>
+                }
+            </div>
+            @if (job.Status == "Calisiyor")
+            {
+                <div class="cs-prog mono">@(job.Progress ?? "çalışıyor…")</div>
+            }
+            else if (job.Status is "Soruyor" or "Bekliyor")
+            {
+                <div class="cs-q">@(job.Status == "Soruyor" ? job.Question : "Claude kullanım limiti doldu. Limit yenilenince devam ettir.")</div>
+                <div class="cs-reply">
+                    <input placeholder="@(job.Status == "Soruyor" ? "Claude'a cevabın…" : "devam et")" @bind="_codingReply" @bind:event="oninput"
+                           @onkeydown='e => e.Key == "Enter" ? ReplyCodingAsync() : Task.CompletedTask' />
+                    <button class="primary" @onclick="ReplyCodingAsync">@(job.Status == "Soruyor" ? "GÖNDER" : "DEVAM ET")</button>
+                </div>
+            }
+            else if (job.LastMessage is { } summary)
+            {
+                <div class="cs-sum md">@((MarkupString)MarkdownRenderer.ToHtml(summary))</div>
+            }
+        </div>
+    }
+
+    @* Gerçek sistem verileri: değerler ve çizgi grafikler saniyede bir (SystemMonitor → ultronHud.metrics). *@
+    <aside class="telemetry">
+        <div class="hud-panel">
+            <div class="ph"><span>SİSTEM TELEMETRİSİ</span><span class="live">● CANLI</span></div>
+            @foreach (var (key, label, color) in Metrics)
+            {
+                <div class="metric">
+                    <div class="mrow"><span>@label</span><b id="m-@key" class="@color">—</b></div>
+                    <canvas class="spark" id="s-@key" data-color="@color"></canvas>
+                </div>
+            }
+        </div>
+        <div class="hud-panel orange guide">
+            <div class="gt"><span></span>ULTRON ŞU AN</div>
+            <div class="now @BannerClass">@NowText</div>
+            <div class="mrow small"><span>SON İŞLEM</span><span class="last">@LastAction</span></div>
+            <div class="mrow small"><span>ULTRON SÜREÇLERİ (RAM)</span><b id="m-ultron" class="o">—</b></div>
+            <canvas class="spark small" id="s-ultron" data-color="o"></canvas>
+        </div>
+    </aside>
+
+    @* Sağ bilgi paneli (2026-10-31): takvim, hava ve piyasa, Ultron. Dakikada bir sorulur; kurlar Host'ta 5 dakikada bir yenilenir. *@
+    <aside class="telemetry info-side">
+        <div class="hud-panel orange guide">
+            <div class="gt"><span></span>BUGÜN</div>
+            <div class="mrow small"><span>@(_info?.Date.ToUpper(Tr) ?? "—")</span></div>
+            @if (_info is { Today.Count: > 0 })
+            {
+                @foreach (var line in _info.Today)
+                {
+                    <div class="info-line">@line</div>
+                }
+            }
+            else
+            {
+                <div class="info-line muted">Bugün ders ya da hatırlatma yok.</div>
+            }
+            @if (_info?.NextExam is { } exam)
+            {
+                <div class="mrow small info-exam"><span>YAKLAŞAN SINAV</span></div>
+                <div class="info-line">@exam</div>
+            }
+        </div>
+        <div class="hud-panel">
+            <div class="ph"><span>HAVA &amp; PİYASA</span><span class="live">● @(_info?.City.ToUpper(Tr) ?? "—")</span></div>
+            <div class="metric">
+                <div class="mrow"><span>HAVA</span><b>@(_info?.Weather ?? "—")</b></div>
+                @if (_info?.WeatherDetail is { } detail)
+                {
+                    <div class="mrow small"><span>BUGÜN</span><span>@detail</span></div>
+                }
+            </div>
+            @foreach (var r in _info?.Rates ?? [])
+            {
+                <div class="mrow"><span>@r.Name.ToUpper(Tr)</span><b>@r.Value.ToString("N2", Tr) ₺ @if (r.ChangePercent is { } c) {<span class="@(c >= 0 ? "info-up" : "info-down")">@(c >= 0 ? "▲" : "▼")@Math.Abs(c).ToString("0.00", Tr)%</span>}</b></div>
+            }
+            <div class="mrow small"><span>KUR</span><span>@(_info?.RatesNote ?? "—")</span></div>
+        </div>
+        <div class="hud-panel">
+            <div class="ph"><span>ULTRON</span><span class="live">● @(_info is null ? "—" : Uptime(_info.UptimeMinutes))</span></div>
+            <div class="metric">
+                <div class="mrow"><span>SENİ TANIMA</span><b>%@(_info?.KnowPercent ?? 0)</b></div>
+                <div class="info-bar"><span style="width:@(_info?.KnowPercent ?? 0)%"></span></div>
+            </div>
+            <div class="mrow"><span>HAFIZA</span><b>@(_info?.Memories ?? 0) bilgi · @(_info?.Categories ?? 0) başlık</b></div>
+            <div class="mrow small"><span>BİRLİKTE</span><span>@(_info?.DaysTogether is { } d ? $"{d} gün" : "yeni tanıştık")</span></div>
+        </div>
+    </aside>
+
+    @* Cevap kutusu (tasarım kararı): soru sorulunca ekranın ortasından açılır, 16:9 oranında ve cevabın uzunluğuna göre büyür;
+       ✕ ile (ya da /temizle, Esc) küçülerek kapanır. Dar kenar panelinde altta, konsolun üstünde durur. *@
+    @if (_messages.Count > 0)
+    {
+    <aside class="log-wrap size-@BoxSize @(_closingBox ? "closing" : "")">
+        <div class="hud-panel log">
+            <div class="ph">
+                <span><i class="odot"></i>NÖRAL İLETİŞİM KAYDI</span>
+                <button class="box-close" title="Konuşmayı kapat (Esc)" @onclick="CloseBoxAsync">✕</button>
+            </div>
+            <main class="messages" @ref="_messagesEl">
+                @foreach (var m in _messages)
+                {
+                    @if (m.IsUser)
+                    {
+                        <div class="entry user">
+                            <div class="who">OPERATÖR // SORU</div>
+                            @if (m.ImagePreview is not null)
+                            {
+                                <img class="q-image" src="@m.ImagePreview" alt="" />
+                            }
+                            <div class="body plain">@m.Text</div>
+                            @if (AnswerAfter(m) is { Streaming: false } answered)
+                            {
+                                <button class="plus @(answered.ExtraOpen ? "on" : "")" title="Bu konuya bilgi ekle / öneri al" @onclick="() => ToggleExtraAsync(m, answered)">+</button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="entry ultron">
+                            <div class="who">
+                                ULTRON // YANIT
+                                @foreach (var chip in m.Chips)
+                                {
+                                    <span class="chip">@chip</span>
+                                }
+                            </div>
+                            <div class="body md">@((MarkupString)MarkdownRenderer.ToHtml(m.Text, withCaret: m.Streaming))</div>
+                            @if (m.ReminderId is not null && m.AwaitingAcknowledge)
+                            {
+                                <div class="ack">
+                                    <button class="primary" @onclick="() => AcknowledgeAsync(m)">OKUDUM</button>
+                                    <span class="muted">@(m.Repeats > 0 ? $"{m.Repeats + 1}. kez · " : "")okudum diyene kadar tekrar edecek</span>
+                                </div>
+                            }
+                            @if (m.Sources.Count > 0)
+                            {
+                                <div class="sources">
+                                    @foreach (var s in m.Sources)
+                                    {
+                                        @if (s.Path is not null)
+                                        {
+                                            <button class="source doc" title="Belgeyi aç: @s.Path" @onclick="() => OpenSource(s)">
+                                                <span class="n">@s.Number</span>
+                                                <span class="t">@s.Title</span>
+                                                <span class="h">BELGE</span>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <a class="source" href="@s.Url" target="_blank" title="@s.Url">
+                                                <span class="n">@s.Number</span>
+                                                <span class="t">@s.Title</span>
+                                                <span class="h">@HostOf(s.Url)</span>
+                                            </a>
+                                        }
+                                    }
+                                </div>
+                            }
+                            @if (m.ExtraOpen && !m.FollowUpsDone)
+                            {
+                                <div class="followups">
+                                    <div class="fu-title">BU KONUYA EKLE@(m.LoadingExtra ? " · öneriler hazırlanıyor…" : "")</div>
+                                    @for (var i = 0; i < m.FollowUps.Count; i++)
+                                    {
+                                        var index = i;
+                                        var question = m.FollowUps[i];
+                                        <div class="fu-q">@question.Question</div>
+                                        <div class="fu-opts">
+                                            @foreach (var option in question.Options)
+                                            {
+                                                var answer = option.Answer;
+                                                <button class="opt @(m.Selected.GetValueOrDefault(index) == answer ? "on" : "")" title="@answer"
+                                                        @onclick="() => ToggleOption(m, index, answer)">@option.Label</button>
+                                            }
+                                        </div>
+                                    }
+                                    <input class="fu-custom" placeholder="Eklemek istediğin bilgi (ör. bütçem 20 bin TL, vejetaryenim…)" @bind="m.CustomAnswer" @bind:event="oninput"
+                                           @onkeydown='e => e.Key == "Enter" ? SendFollowUpsAsync(m) : Task.CompletedTask' />
+                                    <div class="fu-actions">
+                                        <button class="ghost" @onclick="() => m.ExtraOpen = false">Kapat</button>
+                                        <button class="primary" disabled="@((m.Selected.Count == 0 && string.IsNullOrWhiteSpace(m.CustomAnswer)) || _busy)" @onclick="() => SendFollowUpsAsync(m)">Gönder</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </main>
+        </div>
+    </aside>
+    }
+
+    @* Panel açıkken arkasındaki görünmez katman: arayüze tıklayınca panel kapanır (2026-10-31; kurulum sihirbazı hariç). *@
+    @if (AnyPanelOpen)
+    {
+        <div class="panel-backdrop" @onclick="ClosePanels"></div>
+    }
+
+    @if (_statusPanelOpen)
+    {
+        <StatusPanel Client="Client" OnClose="() => _statusPanelOpen = false" />
+    }
+
+    @if (_memoryPanelOpen)
+    {
+        <MemoryPanel Client="Client" OnClose="() => _memoryPanelOpen = false" />
+    }
+
+    @if (_documentPanelOpen)
+    {
+        <DocumentPanel Client="Client" OnClose="() => _documentPanelOpen = false" />
+    }
+
+    @if (_mobilePanelOpen)
+    {
+        <MobilePanel Client="Client" OnClose="() => _mobilePanelOpen = false" />
+    }
+
+    @if (_setupOpen)
+    {
+        <SetupWizard Client="Client" OnClose="() => _setupOpen = false" />
+    }
+
+    @if (_learningPanelOpen)
+    {
+        <LearningPanel Client="Client" OnClose="() => _learningPanelOpen = false" />
+    }
+
+    @* İş arayüzü (Faz 16): HUD'un üstünde tam pencere; çıkınca HUD olduğu gibi kalır. *@
+    @if (_studioOpen)
+    {
+        <StudioView @ref="_studio" />
+    }
+    @* Ders arayüzü (Faz 17): aynı şekilde HUD'un üstünde tam pencere. *@
+    @if (_lessonOpen)
+    {
+        <LessonView @ref="_lesson" />
+    }
+    @* Gelişim panosu (Faz 18): ana arayüz ailesinde tam ekran. *@
+    @if (_growthOpen)
+    {
+        <GrowthView />
+    }
+
+    @* Pencereye dosya sürüklenince görünür; bırakılan dosya görünmez dosya seçiciye düşer (ultron.js). *@
+    <div class="drop-zone" id="drop-zone">
+        <div class="drop-card">
+            <div class="drop-title">BELGE EKLE</div>
+            <div class="muted">Belge (PDF, Word, .txt, .md) → @DocumentPanel.Collection koleksiyonuna eklenir · Görsel → soruna eklenir</div>
+        </div>
+        <InputFile OnChange="OnDroppedFilesAsync" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp,.bmp,.gif" />
+    </div>
+
+    @if (_fullScreen)
+    {
+        <button class="fs-exit" title="Tam ekrandan çık (F11)" @onclick="WindowBridge.ToggleFullScreen">⤓</button>
+    }
+
+    <footer class="console">
+        @if (_pendingImage is not null)
+        {
+            <div class="pending-image">
+                <img src="@_pendingImage.Preview" alt="" />
+                <span class="mono">GÖRSEL EKLİ · @_pendingImage.Name · sorunu yaz (boş bırakırsan ne olduğunu anlatırım)</span>
+                <button title="Görseli kaldır" @onclick="() => _pendingImage = null">✕</button>
+            </div>
+        }
+        <div class="hud-panel bar @(_draft.Length > 0 || _listening ? "active" : "")">
+            <button class="mic @MicClass" title="@MicTitle" @onclick="OnMicAsync" disabled="@(!_ready)">@MicIcon</button>
+            <label class="attach" title="Görsel ekle (ya da Ctrl+V ile yapıştır, pencereye sürükle). Ekran için: &quot;ekrana bak&quot;">
+                📎
+                <InputFile OnChange="OnImagePickedAsync" accept="image/*" disabled="@(!_ready)" />
+            </label>
+            <textarea id="prompt" rows="1" @ref="_promptEl" @bind="_draft" @bind:event="oninput" @onkeydown="OnPromptKeyDown"
+                      placeholder="Soru sor veya komut gir…"
+                      title="Enter: gönder · Shift+Enter: yeni satır · Esc: kapat" disabled="@(!_ready)"></textarea>
+            <button class="send" title="Gönder" @ref="_sendEl" @onclick="SendDraftAsync"
+                    disabled="@(!_ready || _busy || (string.IsNullOrWhiteSpace(_draft) && _pendingImage is null))">
+                <span>GÖNDER</span>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
+            </button>
+        </div>
+        @* Cevap paketi (Faz 19, tasarım kararı): yazma kutusunun altında, Claude Code'daki model seçici gibi; seçim kalıcı. *@
+        <div class="tier-picker" role="radiogroup" aria-label="Cevap paketi">
+            @foreach (var (key, label, hint) in Tiers)
+            {
+                <button role="radio" aria-checked="@(_tier == key)" class="tier @(key == "pro" ? "pro" : "") @(_tier == key ? "on" : "")" title="@hint" @onclick="() => SetTierAsync(key)">@label</button>
+            }
+            <span class="tier-hint mono @(_tierNotice is null ? "" : "warn")">@(_tierNotice ?? Tiers.FirstOrDefault(t => t.Key == _tier).Hint ?? Tiers[0].Hint)</span>
+        </div>
+        <div class="hint mono">🎙 konuş · /hafiza · /belgeler · /ogrenme · /durum · /yeni · /temizle · F11 tam ekran · Esc</div>
+    </footer>
+</div>
+
+@code {
+    private static readonly TimeSpan IdleAfter = TimeSpan.FromMinutes(2);
+
+    private readonly List<ChatItem> _messages = [];
+    private Guid _conversationId;
+    private string _draft = "";
+    private bool _ready, _busy, _failed, _scrollPending, _statusPanelOpen, _memoryPanelOpen, _documentPanelOpen, _learningPanelOpen, _fullScreen;
+
+    private static readonly (string Key, string Label, string Hint)[] Tiers =
+    [
+        ("ultron", "Ultron", "yerel · akıllı okuma · TR+EN arama"),
+        ("pro", "Ultron Pro", "bağlı hesap (Claude, Codex ya da Gemini) araştırır · cevap hafızaya girer"),
+    ];
+
+    private string _tier = "ultron";
+    private string? _tierNotice;
+
+    /// <summary>Pro ancak bağlı hesap varsa seçilir (2026-10-31); yoksa ne yapılacağı paket seçicinin yanında yazar.</summary>
+    private async Task SetTierAsync(string tier)
+    {
+        _tierNotice = null;
+        try
+        {
+            if (tier == "pro" && await Client.GetProStatusAsync() is { Ready: false } pro)
+            {
+                _tierNotice = pro.Message;
+                return;
+            }
+            _tier = tier;
+            await Client.SetAnswerTierAsync(tier);
+        }
+        catch (Exception ex)
+        {
+            DesktopLog.Write("Paket kaydedilemedi: " + ex.Message);
+        }
+    }
+
+    private bool _studioOpen, _mobilePanelOpen, _setupOpen, _lessonOpen, _growthOpen, _switching;
+
+    private bool AnyPanelOpen => _statusPanelOpen || _memoryPanelOpen || _documentPanelOpen || _learningPanelOpen || _mobilePanelOpen;
+
+    private void ClosePanels() => _statusPanelOpen = _memoryPanelOpen = _documentPanelOpen = _learningPanelOpen = _mobilePanelOpen = false;
+
+    // ---- Sağ bilgi paneli (2026-10-31) ----
+    private static readonly System.Globalization.CultureInfo Tr = new("tr-TR");
+    private InfoPanelDto? _info;
+    private System.Threading.Timer? _infoTimer;
+
+    private async Task RefreshInfoAsync()
+    {
+        try
+        {
+            _info = await Client.GetInfoPanelAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            DesktopLog.Write("Bilgi paneli: " + ex.Message);
+        }
+    }
+
+    private static string Uptime(double minutes) =>
+        minutes < 60 ? $"{minutes:0} DK"
+        : minutes < 1440 ? $"{(int)(minutes / 60)} SA {(int)(minutes % 60)} DK"
+        : $"{(int)(minutes / 1440)} GÜN {(int)(minutes % 1440 / 60)} SA";
+    private StudioView? _studio;
+    private LessonView? _lesson;
+
+    /// <summary>İş moduna geç: büyük pencere, ses modelleri ekran kartından boşaltılır (tasarım kararı).</summary>
+    private Task EnterStudioAsync() => GoAsync("is");
+
+    /// <summary>Ders moduna geç: büyük pencere, ses yok; ses modelleri ekran kartından boşaltılır (tasarım kararı).</summary>
+    private Task EnterLessonAsync() => GoAsync("ders");
+
+    /// <summary>Gelişim panosu (Faz 18): ana arayüz ailesinde tam ekran; ses modelleri yerinde kalır.</summary>
+    private Task EnterGrowthAsync() => GoAsync("gelisim");
+
+    private Task ExitLessonAsync() => GoAsync("ana");
+
+    private Task ExitStudioAsync() => GoAsync("ana");
+
+    private string CurrentView => _studioOpen ? "is" : _lessonOpen ? "ders" : _growthOpen ? "gelisim" : "ana";
+
+    /// <summary>
+    /// Arayüzler arası geçiş (2026-10-31): üst çubuk yerinde kalır; altındaki alan sağ alttan sol üste piksel piksel kapanır,
+    /// ekran değişir, aynı yönde açılır (ultronTransition.cover / reveal).
+    /// </summary>
+    private async Task GoAsync(string target)
+    {
+        var current = CurrentView;
+        if (current == target || _switching)
+            return;
+        _switching = true;
+        try
+        {
+            await JS.InvokeAsync<bool>("ultronTransition.cover");
+
+            _statusPanelOpen = _memoryPanelOpen = _documentPanelOpen = _learningPanelOpen = false;
+            if (target != "ana")
+                WindowBridge.EnsureLarge();
+            _studioOpen = target == "is";
+            _lessonOpen = target == "ders";
+            _growthOpen = target == "gelisim";
+            if (!_studioOpen)
+                _studio = null;
+            if (!_lessonOpen)
+                _lesson = null;
+            StateHasChanged();
+            await Task.Delay(40); // yeni arayüz çizilsin
+
+            await JS.InvokeVoidAsync("ultronTransition.reveal");
+        }
+        catch (JSException ex)
+        {
+            DesktopLog.Write("Geçiş efekti: " + ex.Message);
+        }
+        finally
+        {
+            _switching = false;
+        }
+        // İş ve Ders'te ses modelleri ekran kartından boşaltılır; Ana ve Gelişim'de yerinde.
+        var mode = target is "is" or "ders" ? target : "ana";
+        if (mode != (current is "is" or "ders" ? current : "ana"))
+            _ = SetModeAsync(mode);
+        StateHasChanged();
+    }
+
+    private async Task SetModeAsync(string mode)
+    {
+        try
+        {
+            DesktopLog.Write("Mod: " + mode + " · " + await Client.SetModeAsync(mode));
+        }
+        catch (Exception ex)
+        {
+            DesktopLog.Write("Mod değiştirilemedi: " + ex.Message);
+        }
+    }
+
+    /// <summary>Bekleyen düzeltme önerisi sayısı (üst çubuktaki [ÖĞRENME n]); denetim bitince güncellenir.</summary>
+    private int _learningCount;
+    private string _status = "BAŞLATILIYOR";
+    private string _orbState = OrbState.Thinking;
+    private bool _soundOn = DesktopSettings.SoundOn;
+    private ElementReference _core, _messagesEl, _promptEl, _sendEl;
+    private Timer? _idleTimer;
+
+    // ---- Ses: "bas, konuş, susunca bitsin"; cevap cümle cümle okunur, mikrofona basınca söz kesilir ----
+    private readonly VoiceRecorder _recorder = new();
+    private SpeechPlayer? _player;
+    private const int MaxSpokenSentences = 2; // (2026-10-27): "sesli cevapta 1 ya da en fazla 2 cümle"
+    private SentenceSplitter? _splitter; // sadece sesle sorulan sorunun cevabı okunur
+    private CancellationTokenSource? _finishRecording, _abortRecording, _sendCts;
+    private bool _listening, _transcribing, _speaking;
+    private long _lastLevelTicks;
+
+    private string MicClass => _listening ? "on" : _transcribing ? "busy" : _speaking ? "speaking" : "";
+
+    private string MicTitle => _listening ? "Dinliyorum: susunca biter, basınca hemen gönderir"
+        : _speaking ? "Sözü kes ve konuş" : "Konuş (bas, konuş, susunca biter)";
+
+    private static readonly MarkupString MicIcon = new(
+        """<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>""");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _player = new SpeechPlayer(Client.SpeakAsync);
+        _player.SpeakingChanged += speaking => InvokeAsync(() =>
+        {
+            _speaking = speaking;
+            StateHasChanged();
+        });
+        _player.LevelChanged += SendLevel;
+        _recorder.LevelChanged += rms => SendLevel(Math.Min(1f, rms * 8)); // konuşma RMS'i ~0,02-0,15
+        Client.StateChanged += OnConnectionChanged;
+        Client.AppearanceChanged += OnAppearanceChanged;
+        Client.ReminderDue += OnReminderDue;
+        Client.Briefing += OnBriefing;
+        Client.Suggestion += OnSuggestion;
+        Client.CategoryCreated += OnCategoryCreated;
+        WakeWordListener.MainWakeRequested += OnMainWake;
+        Client.CodingUpdate += OnCodingUpdate;
+        Client.LearningReady += OnLearningReady;
+        ReminderAlerts.Acknowledged += OnReminderAcknowledged;
+        WindowBridge.FullScreenChanged += OnFullScreenChanged;
+        try
+        {
+            if (!await Launcher.IsRunningAsync())
+            {
+                _status = "SERVİS BAŞLATILIYOR";
+                StateHasChanged();
+                await Launcher.EnsureRunningAsync();
+            }
+
+            _status = "BAĞLANIYOR";
+            StateHasChanged();
+            await Client.StartAsync();
+            // Konuşma kaldığı yerden devam eder (bağlam için), ama açılış ekranı sade: eski mesajlar gösterilmez.
+            _conversationId = (await Client.GetCurrentConversationAsync()).Id;
+            _tier = await Client.GetAnswerTierAsync();
+            OnAppearanceChanged(await Client.GetAppearanceAsync());
+            _ready = true;
+            SetIdle();
+            _infoTimer = new System.Threading.Timer(_ => _ = InvokeAsync(RefreshInfoAsync), null, TimeSpan.Zero, TimeSpan.FromMinutes(1));
+            // Faz 26: sihirbaz hiç bitirilmediyse kendiliğinden açılır (yeni kurulum ya da güncellenmiş eski kurulum).
+            try
+            {
+                _setupOpen = !(await Client.GetSetupStatusAsync()).Completed;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                DesktopLog.Write("Kurulum durumu alınamadı: " + ex.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            _failed = true;
+            _orbState = OrbState.Error;
+            _status = "Bağlanamadı: " + ex.Message;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("ultronCore.init", _core);
+            await JS.InvokeVoidAsync("ultron.bindPaste", DotNetObjectReference.Create(this)); // Ctrl+V ile görsel
+            _monitor = new SystemMonitor();
+            _monitor.Sample += sample => InvokeAsync(async () =>
+            {
+                try
+                {
+                    await JS.InvokeVoidAsync("ultronHud.metrics", sample);
+                }
+                catch (JSDisconnectedException)
+                {
+                }
+            });
+        }
+
+        await JS.InvokeVoidAsync("ultronCore.setState", CoreState);
+
+        if (_ready)
+            await JS.InvokeVoidAsync("ultron.bindComposer", _promptEl, _sendEl);
+        if (_messages.Count > 0)
+            await JS.InvokeVoidAsync("ultron.renderMath"); // $...$ formüller → KaTeX (matematik yazı tipi)
+        if (_scrollPending)
+        {
+            _scrollPending = false;
+            await JS.InvokeVoidAsync("ultron.scrollToBottom", _messagesEl);
+        }
+    }
+
+    // ---- Cevap kutusu ----
+
+    private bool _closingBox;
+
+    /// <summary>Kutunun boyu cevabın uzunluğuna göre (16:9 korunur): kısa → küçük, uzun → büyük.</summary>
+    private string BoxSize
+    {
+        get
+        {
+            var answer = _messages.LastOrDefault(m => !m.IsUser);
+            var length = (answer?.Text.Length ?? 0) + (answer?.Sources.Count ?? 0) * 80 + (answer is { ExtraOpen: true } ? 300 : 0);
+            return length switch { < 240 => "s", < 800 => "m", < 1800 => "l", _ => "xl" };
+        }
+    }
+
+    /// <summary>Konuşmayı kapat: kutu küçülerek kaybolur, sonra ekran taneciklere döner.</summary>
+    private async Task CloseBoxAsync()
+    {
+        if (_busy || _messages.Count == 0 || _closingBox)
+            return;
+        _closingBox = true;
+        StateHasChanged();
+        await Task.Delay(260); // CSS kapanış animasyonu
+        _closingBox = false;
+        ReturnToIdle();
+    }
+
+    /// <summary>Bir sorunun cevabı (sıradaki Ultron mesajı).</summary>
+    private ChatItem? AnswerAfter(ChatItem question)
+    {
+        var i = _messages.IndexOf(question);
+        return i >= 0 && i + 1 < _messages.Count && !_messages[i + 1].IsUser ? _messages[i + 1] : null;
+    }
+
+    /// <summary>+: "bu konuya ekle" paneli; ilk açılışta öneri soruları Host'tan istenir (her cevaptan sonra otomatik değil).</summary>
+    private async Task ToggleExtraAsync(ChatItem question, ChatItem answer)
+    {
+        answer.ExtraOpen = !answer.ExtraOpen;
+        answer.FollowUpsDone = false;
+        if (!answer.ExtraOpen || answer.FollowUps.Count > 0 || answer.LoadingExtra)
+            return;
+        answer.LoadingExtra = true;
+        StateHasChanged();
+        try
+        {
+            answer.FollowUps = await Client.SuggestFollowUpsAsync(question.Text, answer.Text);
+        }
+        catch (Exception ex)
+        {
+            DesktopLog.Write("Öneriler alınamadı: " + ex.Message);
+        }
+        answer.LoadingExtra = false;
+        _scrollPending = true;
+    }
+
+    private async Task SendDraftAsync()
+    {
+        var text = _draft.Trim();
+        if ((text.Length == 0 && _pendingImage is null) || _busy || !_ready)
+            return;
+
+        _draft = "";
+        await JS.InvokeVoidAsync("ultron.resetComposer", _promptEl);
+        if (await TryRunCommandAsync(text))
+            return;
+        await SendAsync(text);
+    }
+
+    private void ToggleOption(ChatItem item, int question, string option)
+    {
+        if (item.Selected.GetValueOrDefault(question) == option)
+            item.Selected.Remove(question);
+        else
+            item.Selected[question] = option;
+    }
+
+    /// <summary>Seçilen cevaplar tek mesajda gider; seçenekler zaten tam cümle olduğu için hafızaya da doğru yazılır.</summary>
+    /// <summary>Seçilen seçenekler + kullanıcının kendi yazdığı cevap tek mesajda gider (hafızaya da yazılır).</summary>
+    private async Task SendFollowUpsAsync(ChatItem item)
+    {
+        var parts = item.Selected.OrderBy(x => x.Key).Select(x => x.Value.TrimEnd('.') + ".").ToList();
+        if (item.CustomAnswer.Trim() is { Length: > 0 } custom)
+            parts.Add(custom.TrimEnd('.') + ".");
+        if (parts.Count == 0)
+            return;
+        item.FollowUpsDone = true;
+        await SendAsync(string.Join(" ", parts));
+    }
+
+    private async Task SendAsync(string text, bool speak = false)
+    {
+        if (_busy || !_ready)
+            return;
+
+        // Hatırlatma çalarken "okudum" / "tamam": sohbete gitmez, hatırlatma susar.
+        if (ReminderAlerts.HasActive && ReminderAlerts.IsAcknowledgeText(text))
+        {
+            _messages.Add(new ChatItem(isUser: true, text));
+            await ReminderAlerts.AcknowledgeAllAsync(Client);
+            _messages.Add(new ChatItem(isUser: false, "Tamam, hatırlatmayı kapattım."));
+            _scrollPending = true;
+            StateHasChanged();
+            return;
+        }
+
+        _player?.Stop();
+        _splitter = speak && _soundOn ? new SentenceSplitter { MaxSentences = MaxSpokenSentences, StopAtList = true, QuickStart = true } : null;
+        _sendCts = new CancellationTokenSource();
+        _busy = true;
+        PauseIdleTimer();
+
+        // Görsel: eklenmiş görsel ya da "ekrana bak" (sadece açıkça istenince ekran görüntüsü; bilgisayardan çıkmaz, kaydedilmez).
+        var image = _pendingImage?.Jpeg;
+        var fromScreen = false;
+        _pendingImage = null;
+        if (image is null && ImageTools.IsScreenRequest(text))
+        {
+            _status = "EKRANA BAKIYOR";
+            StateHasChanged();
+            try
+            {
+                image = await WindowBridge.CaptureScreenAsync();
+                fromScreen = true;
+            }
+            catch (Exception ex)
+            {
+                DesktopLog.Write("Ekran görüntüsü alınamadı: " + ex.Message);
+            }
+        }
+
+        _messages.Add(new ChatItem(isUser: true, text.Length > 0 ? text : "(görsel)") { ImagePreview = image is null ? null : ImageTools.DataUrl(image) });
+        var reply = new ChatItem(isUser: false, "") { Streaming = true };
+        _messages.Add(reply);
+        _orbState = OrbState.Thinking;
+        _status = "DÜŞÜNÜYOR";
+        _scrollPending = true;
+        StateHasChanged();
+
+        try
+        {
+            var events = image is null
+                ? Client.SendAsync(_conversationId, text, _sendCts.Token)
+                : Client.SendWithImageAsync(_conversationId, text, image, fromScreen, _sendCts.Token);
+            await foreach (var e in events)
+            {
+                Apply(reply, e);
+                _scrollPending = true;
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Mikrofona basılıp söz kesildi: cevap yarım kalır.
+        }
+        catch (Exception ex)
+        {
+            reply.Text += $"\n\n*(Bağlantı hatası: {ex.Message})*";
+        }
+        finally
+        {
+            reply.Streaming = false;
+            _splitter = null;
+            _sendCts.Dispose();
+            _sendCts = null;
+            _busy = false;
+            SetIdle();
+            RestartIdleTimer();
+            _scrollPending = true;
+            StateHasChanged();
+            await JS.InvokeVoidAsync("ultron.focus", _promptEl);
+        }
+    }
+
+    /// <summary>
+    /// Mikrofon düğmesi. Dinlerken basılırsa kayıt hemen biter ve gönderilir. Ultron konuşurken ya da
+    /// cevap yazarken basılırsa söz kesilir ve dinlemeye geçilir.
+    /// </summary>
+    private Task OnMicAsync()
+    {
+        _wakeSession = false; // düğmeyle başlayan konuşma tek tur
+        return ListenAsync(followUp: false);
+    }
+
+    /// <summary>Arayüz açıkken "Ultron" duyuldu: dinle, cevapla, sonra 10 sn "Ultron" demeden ek soru bekle.</summary>
+    private void OnMainWake() => InvokeAsync(async () =>
+    {
+        if (_listening || _transcribing)
+            return;
+        _wakeSession = true;
+        await ListenAsync(followUp: false);
+    });
+
+    private bool _wakeSession;
+
+    private async Task ListenAsync(bool followUp)
+    {
+        if (_listening)
+        {
+            _finishRecording?.Cancel();
+            return;
+        }
+        if (!_ready || _transcribing)
+            return;
+
+        _player?.Stop();
+        _sendCts?.Cancel();
+        PauseIdleTimer();
+        _listening = true;
+        _status = followUp ? "DEVAM EDEBİLİRSİN (10 SN)" : "DİNLİYOR";
+        StateHasChanged();
+        _ = Client.PrepareVoiceAsync().ContinueWith(t => DesktopLog.Write("Ses hazırlığı: " + t.Exception?.GetBaseException().Message),
+            TaskContinuationOptions.OnlyOnFaulted);
+
+        byte[]? wav;
+        _finishRecording = new CancellationTokenSource();
+        _abortRecording = new CancellationTokenSource();
+        try
+        {
+            wav = await _recorder.RecordAsync(_finishRecording.Token, _abortRecording.Token, followUp ? WakeWordRules.FollowUpMs : null);
+        }
+        catch (Exception ex)
+        {
+            DesktopLog.Write("Mikrofon hatası: " + ex);
+            _status = "MİKROFON AÇILAMADI";
+            return;
+        }
+        finally
+        {
+            _listening = false;
+            _finishRecording.Dispose();
+            _abortRecording.Dispose();
+            _abortRecording = null;
+            _finishRecording = null;
+            StateHasChanged();
+        }
+
+        if (wav is null)
+        {
+            SetIdle();
+            _status = followUp ? "ÇEVRİMİÇİ" : "SES DUYULMADI";
+            _wakeSession = false;
+            RestartIdleTimer();
+            return;
+        }
+
+        _transcribing = true;
+        _orbState = OrbState.Thinking;
+        _status = "ANLIYOR";
+        StateHasChanged();
+        string text;
+        try
+        {
+            text = await Client.TranscribeAsync(wav);
+            DesktopLog.Write($"Ses kaydı {wav.Length / 32000.0:F1} sn → {(text.Length == 0 ? "(anlaşılmadı)" : text.Length + " karakter")}");
+        }
+        catch (Exception ex)
+        {
+            DesktopLog.Write("Yazıya çevirme hatası: " + ex);
+            text = "";
+        }
+        finally
+        {
+            _transcribing = false;
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            SetIdle();
+            _status = "ANLAŞILMADI, TEKRAR DENE";
+            RestartIdleTimer();
+            StateHasChanged();
+            return;
+        }
+
+        await SendAsync(text, speak: true);
+        // Her sesli sorudan sonra (düğme ya da "Ultron"; kullanıcı 2026-10-29) Ultron konuşmayı bitirsin (kendi sesini kaydetmesin), sonra 10 sn ek soruyu dinle.
+        while (_busy || _player is { IsSpeaking: true })
+            await Task.Delay(150);
+        if (!_listening)
+            await ListenAsync(followUp: true);
+    }
+
+    /// <summary>Ses seviyesini küreye iletir. Ses iş parçacığından saniyede ~30 kez gelir; 40 ms'de bire indirilir.</summary>
+    private void SendLevel(float level)
+    {
+        var now = Environment.TickCount64;
+        if (level > 0 && now - Interlocked.Read(ref _lastLevelTicks) < 40)
+            return;
+        Interlocked.Exchange(ref _lastLevelTicks, now);
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("ultronCore.setLevel", level);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        });
+    }
+
+    /// <summary>
+    /// Çekirdeğin hali: kullanıcı yazarken ya da konuşurken genişler (asking), Ultron anlarken/düşünürken/konuşurken
+    /// yoğunlaşıp küçülür (answering).
+    /// </summary>
+    private string CoreState =>
+        _failed || _orbState == OrbState.Error ? "error"
+        : _listening || (!_busy && !_transcribing && !_speaking && _draft.Length > 0) ? "asking"
+        : _busy || _transcribing || _speaking ? "answering"
+        : "idle";
+
+    /// <summary>Başlıktaki durum (2026-10-31, kullanıcı: sadece üç kelime): açılıyor · boşta · çalışıyor.</summary>
+    private string BannerState =>
+        _failed || !_ready ? "OPENING"
+        : _listening || _transcribing || _speaking || _busy ? "ACTIVATED"
+        : "WAITING";
+
+    // ---- Sol panel: gerçek sistem verileri ----
+    private SystemMonitor? _monitor;
+
+    /// <summary>(anahtar, etiket, renk sınıfı): ultron.js aynı anahtarlarla değer ve grafiği günceller.</summary>
+    private static readonly (string Key, string Label, string Color)[] Metrics =
+    [
+        ("cpu", "CPU KULLANIMI", "c"),
+        ("ram", "RAM", "c"),
+        ("gpu", "EKRAN KARTI (GPU)", "o"),
+        ("vram", "EKRAN KARTI BELLEĞİ", "o"),
+        ("temp", "GPU SICAKLIĞI", "a"),
+        ("disk", "DİSK (SSD) ETKİNLİĞİ", "c"),
+        ("battery", "PİL", "a"),
+    ];
+
+    private string NowText =>
+        _failed ? "ÇEVRİMDIŞI"
+        : !_ready ? "BAŞLATILIYOR"
+        : _listening ? "SENİ DİNLİYOR"
+        : _transcribing ? "SESİ YAZIYA ÇEVİRİYOR"
+        : _speaking ? "KONUŞUYOR"
+        : _busy ? _status
+        : _draft.Length > 0 ? "YAZMANI BEKLİYOR"
+        : "BEKLEMEDE";
+
+    private string LastAction =>
+        _messages.LastOrDefault(m => !m.IsUser && m.Chips.Count > 0) is { } m ? string.Join(" · ", m.Chips) : "—";
+
+    private string BannerClass => CoreState switch
+    {
+        "asking" => "c",
+        "answering" => "o",
+        "error" => "e",
+        _ => "",
+    };
+
+    private async Task ToggleSound()
+    {
+        _soundOn = DesktopSettings.SoundOn = !_soundOn;
+        if (!_soundOn)
+            _player?.Stop();
+        await JS.InvokeVoidAsync("ultronCore.setSound", _soundOn);
+    }
+
+    /// <summary>Üst çubuktaki komut düğmeleri: yazıyla girilen komutların aynısı.</summary>
+    private async Task RunCommandAsync(string command)
+    {
+        if (_ready)
+            await TryRunCommandAsync(command);
+    }
+
+    /// <summary>Ekran komutları sunucuya gitmez.</summary>
+    private async Task<bool> TryRunCommandAsync(string text)
+    {
+        if (text.StartsWith('/') && !text.Equals("/mobil", StringComparison.OrdinalIgnoreCase))
+            _mobilePanelOpen = false; // başka bir panel ya da komut açılınca Mobil kapanır
+        switch (text.ToLowerInvariant())
+        {
+            case "/durum":
+                _memoryPanelOpen = _documentPanelOpen = _learningPanelOpen = false;
+                _statusPanelOpen = true;
+                return true;
+            case "/hafiza" or "/hafıza":
+                _statusPanelOpen = _documentPanelOpen = _learningPanelOpen = false;
+                _memoryPanelOpen = true;
+                return true;
+            case "/belgeler" or "/belge":
+                _statusPanelOpen = _memoryPanelOpen = _learningPanelOpen = false;
+                _documentPanelOpen = true;
+                return true;
+            case "/mobil":
+                _statusPanelOpen = _memoryPanelOpen = _documentPanelOpen = _learningPanelOpen = false;
+                _mobilePanelOpen = true;
+                return true;
+            case "/kurulum":
+                _statusPanelOpen = _memoryPanelOpen = _documentPanelOpen = _learningPanelOpen = false;
+                _setupOpen = true;
+                return true;
+            case "/is" or "/iş":
+                await EnterStudioAsync();
+                return true;
+            case "/ders":
+                await EnterLessonAsync();
+                return true;
+            case "/gelisim" or "/gelişim":
+                await EnterGrowthAsync();
+                return true;
+            case "/ogrenme" or "/öğrenme":
+                _statusPanelOpen = _memoryPanelOpen = _documentPanelOpen = _learningPanelOpen = false;
+                _learningPanelOpen = true;
+                _learningCount = 0;
+                return true;
+            case "/yeni":
+                _conversationId = (await Client.StartNewConversationAsync()).Id;
+                ReturnToIdle();
+                return true;
+            case "/temizle":
+                await CloseBoxAsync();
+                return true;
+            case "/tamekran":
+                WindowBridge.ToggleFullScreen();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>Logo menüsü açık mı (üst çubukta sadece DERS ve İŞ; diğer komutlar burada).</summary>
+    private bool _menuOpen;
+
+    private async Task MenuAsync(Func<Task> action)
+    {
+        _menuOpen = false;
+        await action();
+    }
+
+    private void OnPromptKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape")
+            return;
+        if (_menuOpen)
+            _menuOpen = false;
+        else if (_speaking || _listening)
+        {
+            // Önce sesi sustur / dinlemeyi iptal et; ekran olduğu gibi kalır.
+            _player?.Stop();
+            _abortRecording?.Cancel();
+        }
+        else if (_statusPanelOpen || _memoryPanelOpen || _documentPanelOpen || _learningPanelOpen || _mobilePanelOpen)
+            _statusPanelOpen = _memoryPanelOpen = _documentPanelOpen = _learningPanelOpen = _mobilePanelOpen = false;
+        else if (_fullScreen && string.IsNullOrEmpty(_draft))
+            WindowBridge.ToggleFullScreen();
+        else if (string.IsNullOrEmpty(_draft) && !_busy)
+            _ = CloseBoxAsync();
+    }
+
+    private void OnFullScreenChanged(bool fullScreen) => InvokeAsync(() =>
+    {
+        _fullScreen = fullScreen;
+        StateHasChanged();
+    });
+
+    private void Apply(ChatItem reply, ChatEventDto e)
+    {
+        switch (e.Type)
+        {
+            case ChatEventTypes.Intent when e.Detailed == true && _splitter is not null:
+                // Ayrıntı istendi: uzun cevap okunmaz (kullanıcı: "detaylı yaz dersem okumasın, ekrana yazıyorum desin").
+                _splitter = null;
+                _player?.Enqueue("Ekrana yazıyorum.");
+                if (IntentLabel(e.Intent) is { } detailedLabel)
+                    reply.Chips.Add(detailedLabel);
+                break;
+            case ChatEventTypes.Intent when IntentLabel(e.Intent) is { } label:
+                reply.Chips.Add(label);
+                break;
+            case ChatEventTypes.Memories when e.RelevantMemories is { Count: > 0 } relevant:
+                reply.Chips.Add($"HAFIZADAN {relevant.Count}");
+                break;
+            case ChatEventTypes.Web:
+                reply.Chips.Add(e.FromCache == true ? "ÖNBELLEKTEN" : $"WEB · {e.Query}");
+                _status = e.FromCache == true ? "ÖNBELLEK" : "KAYNAKLARI OKUYOR";
+                break;
+            case ChatEventTypes.Image:
+                reply.Chips.Add(e.FromScreen == true ? "EKRAN GÖRÜNTÜSÜ" : "GÖRSEL");
+                _status = "GÖRSELE BAKIYOR";
+                break;
+            case ChatEventTypes.Research:
+                if (!reply.Chips.Contains("ARAŞTIRMA"))
+                    reply.Chips.Add("ARAŞTIRMA");
+                if (_splitter is not null)
+                {
+                    // Araştırma raporu uzun: okunmaz, ekrana yazılır.
+                    _splitter = null;
+                    _player?.Enqueue("Araştırıyorum, raporu ekrana yazıyorum.");
+                }
+                _status = (e.Text ?? "").ToUpper(new System.Globalization.CultureInfo("tr-TR"));
+                break;
+            case ChatEventTypes.Progress:
+                // Cevap paketi ilerlemesi (Medium derin web, PRO Claude): sesli okuma kesilmez, sadece durum satırı.
+                var tierChip = (e.Query ?? "").ToUpper(new System.Globalization.CultureInfo("tr-TR"));
+                if (tierChip.Length > 0 && !reply.Chips.Contains(tierChip))
+                    reply.Chips.Add(tierChip);
+                _status = (e.Text ?? "").ToUpper(new System.Globalization.CultureInfo("tr-TR"));
+                break;
+            case ChatEventTypes.ResearchSaved when e.Text is not null:
+                reply.Chips.Add("BİLGİ TABANINA KAYDEDİLDİ");
+                break;
+            case ChatEventTypes.Documents:
+                reply.Chips.Add(e.Text is "0" ? "NOTLARDA YOK" : $"NOTLARDAN {e.Text}{(e.Query is { } scope ? " · " + scope.ToUpper(new System.Globalization.CultureInfo("tr-TR")) : "")}");
+                _status = "NOTLARI OKUYOR";
+                break;
+            case ChatEventTypes.Library:
+                reply.Chips.Add($"KÜTÜPHANEDEN {e.Text}");
+                _status = "DOKÜMANTASYONA BAKIYOR";
+                break;
+            case ChatEventTypes.WebUnavailable:
+                reply.Chips.Add("WEB KAPALI");
+                break;
+            case ChatEventTypes.Tools when e.Tools is not null:
+                foreach (var tool in e.Tools)
+                    reply.Chips.Add(ToolLabel(tool.Name) + (tool.Ok ? "" : " · HATA"));
+                break;
+            case ChatEventTypes.Chunk:
+                reply.Text += e.Text;
+                if (_splitter is not null && e.Text is not null)
+                    foreach (var sentence in _splitter.Push(e.Text))
+                        _player?.Enqueue(sentence);
+                _orbState = OrbState.Speaking;
+                _status = "YAZIYOR";
+                break;
+            case ChatEventTypes.Sources when e.Sources is not null:
+                reply.Sources = e.Sources;
+                break;
+            case ChatEventTypes.Completed:
+                reply.Streaming = false;
+                if (e.Text is not null)
+                    reply.Text = e.Text; // sunucu son metni düzeltmiş olabilir (ör. sondaki soru cümlesi atıldı)
+                // Kalan yarım cümle: sunucu onu son metinden attıysa okunmaz.
+                if (_splitter?.Flush() is { } rest && (e.Text is null || e.Text.Contains(rest)))
+                    _player?.Enqueue(rest);
+                // Sesli cevap kısa özet: uzun ya da maddeli cevabın sadece başı okunur, gerisi ekranda.
+                if (_splitter is { ReachedList: true })
+                    _player?.Enqueue("Ayrıntıları aşağıda listeledim, oradan okuyabilirsin.");
+                else if (_splitter is { Truncated: true })
+                    _player?.Enqueue("Devamını aşağıya yazdım.");
+                _orbState = OrbState.Idle;
+                _status = "ÇEVRİMİÇİ";
+                break;
+            case ChatEventTypes.FollowUps when e.FollowUps is { Count: > 0 } followUps:
+                reply.FollowUps = followUps;
+                reply.ExtraOpen = true;
+                break;
+        }
+    }
+
+    // ---- Kodlama şeridi (Faz 13) ----
+
+    private CodingJobDto? _coding;
+    private bool _codingDismissed;
+    private string _codingReply = "";
+
+    private void OnCodingUpdate(CodingJobDto job) => InvokeAsync(() =>
+    {
+        if (_coding?.Id != job.Id || _coding.Status != job.Status)
+            _codingDismissed = false; // yeni iş ya da durum değişti (soru, bitti): şerit tekrar görünsün
+        _coding = job;
+        StateHasChanged();
+    });
+
+    private async Task ReplyCodingAsync()
+    {
+        var answer = _codingReply.Trim();
+        if (_coding is null || (answer.Length == 0 && _coding.Status == "Soruyor"))
+            return;
+        _codingReply = "";
+        try
+        {
+            _status = (await Client.ReplyCodingAsync(answer.Length == 0 ? "devam et" : answer)).ToUpper(new System.Globalization.CultureInfo("tr-TR"));
+        }
+        catch (Exception ex)
+        {
+            DesktopLog.Write("Kodlama cevabı gönderilemedi: " + ex.Message);
+        }
+    }
+
+    private async Task CancelCodingAsync()
+    {
+        try { await Client.CancelCodingAsync(); }
+        catch (Exception ex) { DesktopLog.Write("Kodlama durdurulamadı: " + ex.Message); }
+    }
+
+    private static string CodingLabel(string status) => status switch
+    {
+        "Calisiyor" => "ÇALIŞIYOR",
+        "Soruyor" => "CLAUDE SORUYOR",
+        "Bitti" => "BİTTİ",
+        "Hata" => "HATA",
+        "Bekliyor" => "LİMİT DOLDU",
+        _ => "İPTAL",
+    };
+
+    // ---- Görsel ekleme (Faz 11) ----
+
+    private PendingImage? _pendingImage;
+
+    private async Task OnImagePickedAsync(InputFileChangeEventArgs e) => await SetPendingImageAsync(e.File);
+
+    private async Task SetPendingImageAsync(IBrowserFile file)
+    {
+        try
+        {
+            await using var stream = file.OpenReadStream(maxAllowedSize: 30L * 1024 * 1024);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            _pendingImage = new PendingImage(ImageTools.Prepare(buffer.ToArray()), file.Name);
+        }
+        catch (Exception ex)
+        {
+            DesktopLog.Write($"Görsel okunamadı ({file.Name}): {ex.Message}");
+            _status = "GÖRSEL OKUNAMADI";
+        }
+        StateHasChanged();
+        await JS.InvokeVoidAsync("ultron.focus", _promptEl);
+    }
+
+    /// <summary>Yazı kutusuna Ctrl+V ile yapıştırılan görsel (ultron.js).</summary>
+    [JSInvokable]
+    public async Task OnImagePasted(string base64, string name)
+    {
+        if (_studioOpen && _studio is not null)
+        {
+            await _studio.SetPastedImageAsync(Convert.FromBase64String(base64), name);
+            return;
+        }
+        if (_lessonOpen && _lesson is not null)
+        {
+            await _lesson.SetPastedImageAsync(Convert.FromBase64String(base64), name);
+            return;
+        }
+        try
+        {
+            _pendingImage = new PendingImage(ImageTools.Prepare(Convert.FromBase64String(base64)), string.IsNullOrWhiteSpace(name) ? "yapıştırılan görsel" : name);
+        }
+        catch (Exception ex)
+        {
+            DesktopLog.Write("Yapıştırılan görsel okunamadı: " + ex.Message);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Pencereye bırakılan dosyalar: görsel → soruya eklenir; belge → son kullanılan koleksiyona eklenir, sonuç sohbet kaydına yazılır.</summary>
+    private async Task OnDroppedFilesAsync(InputFileChangeEventArgs e)
+    {
+        if (!_ready)
+            return;
+        var files = e.GetMultipleFiles(20);
+        if (files.Count == 1 && ImageTools.IsImage(files[0].Name))
+        {
+            await SetPendingImageAsync(files[0]);
+            return;
+        }
+        var item = new ChatItem(false, "Belge ekleniyor… Resimli (taranmış) sayfalar varsa yazı tanıma sayfa başına birkaç saniye sürebilir.") { Streaming = true };
+        item.Chips.Add("BELGE");
+        _messages.Add(item);
+        _scrollPending = true;
+        StateHasChanged();
+
+        var lines = new List<string>();
+        foreach (var file in files)
+        {
+            var result = await DocumentPanel.Upload(Client, file, DocumentPanel.Collection);
+            lines.Add((result.Status == "Added" ? "✓ " : "✕ ") + result.Message);
+            item.Text = string.Join("\n\n", lines);
+            StateHasChanged();
+        }
+
+        if (lines.Any(l => l.StartsWith('✓')))
+            lines.Add("Artık sorabilirsin: \"" + DocumentPanel.Collection + " notlarımda … ne yazıyor?\" Koleksiyonu /belgeler'den değiştirebilirsin.");
+        item.Text = string.Join("\n\n", lines);
+        item.Streaming = false;
+        _scrollPending = true;
+        StateHasChanged();
+    }
+
+    /// <summary>Kaynak kartı: web sayfası tarayıcıda, belge kendi sayfasında açılır.</summary>
+    private static void OpenSource(SourceDto s)
+    {
+        if (s.Path is { } path)
+            DocumentOpener.Open(path, s.Page);
+    }
+
+    /// <summary>Ekranı sadece taneciklere döndürür. Konuşma silinmez, sadece görünümden kalkar.</summary>
+    private void ReturnToIdle()
+    {
+        if (_busy)
+            return;
+        _messages.Clear();
+        _statusPanelOpen = _memoryPanelOpen = _documentPanelOpen = _learningPanelOpen = false;
+        PauseIdleTimer();
+        StateHasChanged();
+    }
+
+    private void RestartIdleTimer() => _idleTimer?.Change(IdleAfter, Timeout.InfiniteTimeSpan);
+
+    private void PauseIdleTimer() => _idleTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+
+    private void SetIdle()
+    {
+        _orbState = OrbState.Idle;
+        _status = "ÇEVRİMİÇİ";
+    }
+
+    private void OnConnectionChanged() => InvokeAsync(() =>
+    {
+        if (!_ready)
+            return;
+        var state = Client.State;
+        _status = state switch
+        {
+            Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected => _busy ? _status : "ÇEVRİMİÇİ",
+            Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Reconnecting => "YENİDEN BAĞLANIYOR",
+            _ => "BAĞLANTI YOK",
+        };
+        _orbState = state == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected
+            ? (_busy ? _orbState : OrbState.Idle)
+            : OrbState.Error;
+        StateHasChanged();
+    });
+
+    /// <summary>Hatırlatma sohbet kaydına da düşer (Windows bildirimi ve sesi uygulama verir: pencere kapalıyken de çalışsın).</summary>
+    private void OnReminderDue(ReminderDueDto due) => InvokeAsync(() =>
+    {
+        // Tekrar eden hatırlatma yeni kart açmaz: mevcut kart "2. kez" diye güncellenir ve en alta taşınır.
+        var item = _messages.LastOrDefault(m => m.ReminderId == due.Id && m.AwaitingAcknowledge);
+        if (item is null)
+        {
+            item = new ChatItem(isUser: false, due.Spoken) { ReminderId = due.Id, AwaitingAcknowledge = due.NeedsAcknowledge };
+            item.Chips.Add(due.Missed ? "KAÇIRILAN HATIRLATMA" : "HATIRLATMA");
+            if (due.Priority != "Onemsiz")
+                item.Chips.Add(due.Priority == "CokOnemli" ? "ÇOK ÖNEMLİ" : "ÖNEMLİ");
+        }
+        else
+        {
+            _messages.Remove(item);
+            item.Repeats++;
+        }
+        _messages.Add(item);
+        _scrollPending = true;
+        StateHasChanged();
+    });
+
+    private void OnBriefing(BriefingDto briefing) => InvokeAsync(() =>
+    {
+        var item = new ChatItem(isUser: false, briefing.Text);
+        item.Chips.Add(briefing.Late ? "SABAH BRİFİNGİ · GEÇ" : "SABAH BRİFİNGİ");
+        _messages.Add(item);
+        _scrollPending = true;
+        StateHasChanged();
+    });
+
+    private void OnCategoryCreated(string name, string example) => InvokeAsync(() =>
+    {
+        var item = new ChatItem(isUser: false, $"Yeni bir hafıza kategorisi açtım: **{name}**. İlk bilgi: {example}");
+        item.Chips.Add("📁 YENİ KATEGORİ");
+        _messages.Add(item);
+        _scrollPending = true;
+        StateHasChanged();
+    });
+
+    /// <summary>Gece denetimi bitti (Faz 15 d): öğrenilen ya da bekleyen varsa sohbete kısa kart, üst çubukta bekleyen sayısı.</summary>
+    private void OnLearningReady(int reviewed, int learned, int pending) => InvokeAsync(() =>
+    {
+        _learningCount = pending;
+        if (learned + pending > 0)
+        {
+            var text = $"Gece denetimi: {reviewed} yazılım cevabım okundu. "
+                + (learned > 0 ? $"{learned} hatamı resmi kaynaklara göre düzelttim. " : "")
+                + (pending > 0 ? $"{pending} öneri kaynak gösterilemediği için onayını bekliyor. " : "")
+                + "Ayrıntı: /ogrenme";
+            var item = new ChatItem(isUser: false, text);
+            item.Chips.Add("📘 ÖĞRENME");
+            _messages.Add(item);
+            _scrollPending = true;
+        }
+        StateHasChanged();
+    });
+
+    private void OnSuggestion(string text) => InvokeAsync(() =>
+    {
+        var item = new ChatItem(isUser: false, text);
+        item.Chips.Add("💡 ÖNERİ");
+        _messages.Add(item);
+        _scrollPending = true;
+        StateHasChanged();
+    });
+
+    private void OnReminderAcknowledged(long id) => InvokeAsync(() =>
+    {
+        foreach (var m in _messages.Where(m => m.ReminderId == id))
+            m.AwaitingAcknowledge = false;
+        StateHasChanged();
+    });
+
+    private Task AcknowledgeAsync(ChatItem item) =>
+        item.ReminderId is { } id ? ReminderAlerts.AcknowledgeAsync(Client, id) : Task.CompletedTask;
+
+    private static string ToolLabel(string name) => name switch
+    {
+        "hatirlatici_kur" => "HATIRLATICI KURULDU",
+        "hatirlaticilari_listele" => "HATIRLATICILAR",
+        "hatirlatici_iptal" => "HATIRLATICI İPTAL",
+        "hava_durumu" => "HAVA · OPEN-METEO",
+        "hesapla" => "HESAP",
+        "ayar_degistir" => "AYAR DEĞİŞTİ",
+        "ayarlari_goster" => "AYARLAR",
+        "ders_ekle" => "DERS EKLENDİ",
+        "ders_programi" => "DERS PROGRAMI",
+        "ders_sil" => "DERS SİLİNDİ",
+        "gunluk_ozet" => "GÜNÜN ÖZETİ",
+        _ => name.ToUpperInvariant(),
+    };
+
+    /// <summary>Sadece kullanıcıya bilgi veren niyetler etiket olur; Sohbet ve GenelBilgi sessiz geçer.</summary>
+    private static string? IntentLabel(string? intent) => intent switch
+    {
+        "Kisisel" => "KİŞİSEL",
+        "Guncel" => "GÜNCEL",
+        "Belge" => "BELGE",
+        "Komut" => "KOMUT",
+        "Yazilim" => "YAZILIM",
+        _ => null,
+    };
+
+    private static string HostOf(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host.Replace("www.", "") : url;
+
+    /// <summary>Formül/yazı boyutu: kök CSS değişkenleri (--formula-scale, --text-scale); ana, ders ve tüm ekranlar aynı anda değişir.</summary>
+    private void OnAppearanceChanged(AppearanceDto appearance) =>
+        _ = InvokeAsync(() => JS.InvokeVoidAsync("ultronAppearance", appearance.FormulaPercent, appearance.TextPercent).AsTask());
+
+    public void Dispose()
+    {
+        _infoTimer?.Dispose();
+        Client.AppearanceChanged -= OnAppearanceChanged;
+        Client.StateChanged -= OnConnectionChanged;
+        Client.ReminderDue -= OnReminderDue;
+        Client.Briefing -= OnBriefing;
+        Client.Suggestion -= OnSuggestion;
+        Client.CategoryCreated -= OnCategoryCreated;
+        WakeWordListener.MainWakeRequested -= OnMainWake;
+        Client.CodingUpdate -= OnCodingUpdate;
+        Client.LearningReady -= OnLearningReady;
+        ReminderAlerts.Acknowledged -= OnReminderAcknowledged;
+        WindowBridge.FullScreenChanged -= OnFullScreenChanged;
+        _idleTimer?.Dispose();
+        _abortRecording?.Cancel();
+        _player?.Dispose();
+        _monitor?.Dispose();
+    }
+}

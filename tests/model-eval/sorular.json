@@ -1,0 +1,125 @@
+{
+  "modeller": ["gemma4:e4b-it-qat", "bonsai-2:9b"],
+  "embedding_modelleri": ["qwen3-embedding:0.6b"],
+  "ctx_denemeleri": [4096, 8192, 16384],
+  "test_ctx": 8192,
+
+  "kategoriler": ["Okul", "Kariyer", "Projeler", "Kisiler", "OzelHayat", "Saglik", "Tercihler", "Rutinler", "GenelBilgi"],
+  "router_siniflari": ["Kisisel", "GenelBilgi", "Guncel", "Belge", "Komut", "Sohbet"],
+
+  "sistem_promptlari": {
+    "sohbet": "Sen Ultron'sun: kişisel, profesyonel bir asistan. Türkçe konuşursun. Ciddi ve net bir tonun var; kullanıcıya ismiyle hitap etmezsin, giriş cümlesi kurmadan doğrudan söyleyeceğini söylersin. Cevapların kısa ve öz olur. Bugünün tarihi: {tarih}.",
+    "cikarma": "Görevin: kullanıcının mesajından KALICI kişisel bilgileri çıkarmak. Kalıcı bilgi, kullanıcı hakkında ileride işe yarayacak gerçeklerdir (okul, iş, kişiler, evcil hayvan, sağlık, tercihler, rutinler). Selamlaşma, anlık duygu, hava yorumu ve soru cümleleri kalıcı bilgi DEĞİLDİR. Her bilgi için listeden tam olarak bir kategori seç: {kategoriler}. Kategori anlamları: Okul = kullanıcının KENDİ okulu, dersleri, sınavları. Kariyer = staj, iş, başvurular, kariyer hedefleri. Projeler = kullanıcının yürüttüğü projeler. Kisiler = aile, arkadaşlar ve onlar hakkındaki her bilgi (başka birinin okulu/işi de buraya girer). OzelHayat = evcil hayvan, ev, hobiler, özel konular. Saglik = sağlık, alerji, ilaç. Tercihler = sevdiği/sevmediği şeyler. Rutinler = düzenli yaptığı şeyler, haftalık program. GenelBilgi = kişisel olmayan genel bilgi. Bilgiyi üçüncü şahıs ve kısa bir cümle olarak yaz (ör. 'Kedisinin adı Pamuk'). Kalıcı bilgi yoksa boş liste döndür. SADECE JSON döndür. Bugünün tarihi: {tarih}.",
+    "router": "Görevin: kullanıcının mesajını tek bir sınıfa ayırmak. Sınıflar: Kisisel = kullanıcının kendi hayatı, geçmişte söyledikleri hakkında soru. GenelBilgi = zamanla değişmeyen genel bilgi, tanım, açıklama. Guncel = fiyat, kur, hava durumu, haber gibi zamanla değişen bilgi. Belge = kullanıcının yüklediği dosya veya notlarla ilgili soru. Komut = bir işlem yapılmasını isteme (hatırlatma, uygulama açma vb.). Sohbet = selamlaşma, hal hatır. Kullanıcının kendisi, ailesi, evcil hayvanı, dersleri hakkında 'neydi / nedir / hangisiydi' soruları Kisisel'dir. Belge SADECE kullanıcı açıkça bir dosya, not, PDF veya belgeden bahsederse seçilir. SADECE JSON döndür.",
+    "arac": "Sen Ultron'sun, Türkçe konuşan kişisel bir asistan. Kullanıcı bir işlem isterse (hatırlatma kurma, hava durumu, uygulama açma) cevap yazmadan önce MUTLAKA ilgili aracı çağır. Aracı çağırmadan 'kurdum', 'kontrol ettim', 'açtım' deme; araç sonucu olmadan hava durumu gibi bilgileri ASLA uydurma. İşlem gerekmiyorsa araç çağırmadan doğrudan cevap ver. Bugünün tarihi ve saati: {tarih}. Saat dilimi: Europe/Istanbul."
+  },
+
+  "araclar": [
+    {
+      "type": "function",
+      "function": {
+        "name": "hatirlatici_kur",
+        "description": "Kullanıcıya belirli bir zamanda hatırlatma bildirimi gönderir.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "metin": { "type": "string", "description": "Hatırlatılacak şey" },
+            "zaman": { "type": "string", "description": "İlk hatırlatma zamanı, ISO 8601 (ör. 2026-10-27T09:00)" },
+            "tekrar": { "type": "string", "description": "Tekrar kuralı: yok, gunluk, haftalik:pazartesi gibi" }
+          },
+          "required": ["metin", "zaman"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "hava_durumu",
+        "description": "Bir şehir için hava durumu tahminini getirir.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "sehir": { "type": "string", "description": "Şehir adı" },
+            "tarih": { "type": "string", "description": "Tarih, ISO 8601 (ör. 2026-10-27)" }
+          },
+          "required": ["sehir"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "uygulama_ac",
+        "description": "Bilgisayarda izin listesindeki bir uygulamayı açar.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "uygulama": { "type": "string", "description": "Uygulamanın adı (ör. Visual Studio, Spotify)" }
+          },
+          "required": ["uygulama"]
+        }
+      }
+    }
+  ],
+
+  "testler": [
+    { "id": "s1", "kategori": "sohbet", "mesaj": "Bugün biraz yorgunum. Kısa bir motivasyon cümlesi söyler misin?" },
+    { "id": "s2", "kategori": "sohbet", "mesaj": "Termodinamiğin ikinci yasasını bir lise öğrencisine anlatır gibi 3 cümleyle açıkla." },
+    { "id": "s3", "kategori": "sohbet", "mesaj": ".NET'te async ve await ne işe yarar? Kısa bir benzetmeyle anlat." },
+    { "id": "s4", "kategori": "sohbet", "mesaj": "Yarın sınavım var ama hiç çalışmadım. Ne yapmamı önerirsin? Madde madde ve kısa." },
+    { "id": "s5", "kategori": "sohbet", "mesaj": "Makine mühendisliği öğrencisi olarak yaz stajı başvurusunda dikkat etmem gereken üç şey nedir?" },
+
+    { "id": "c1", "kategori": "cikarma", "mesaj": "Bu dönem Termodinamik II ve Akışkanlar Mekaniği alıyorum.", "gerekli": ["Okul"], "izinli": [] },
+    { "id": "c2", "kategori": "cikarma", "mesaj": "Kedimin adı Pamuk, 3 yaşında.", "gerekli": ["OzelHayat"], "izinli": [] },
+    { "id": "c3", "kategori": "cikarma", "mesaj": "Bugün hava çok güzelmiş değil mi?", "bos_olmali": true },
+    { "id": "c4", "kategori": "cikarma", "mesaj": "Kız kardeşim Elif İstanbul'da tıp okuyor, ben de staj için ASELSAN'a başvurdum.", "gerekli": ["Kisiler", "Kariyer"], "izinli": ["OzelHayat"] },
+    { "id": "c5", "kategori": "cikarma", "mesaj": "Kahveyi şekersiz içerim, sabahları da erken kalkmayı severim.", "gerekli": [], "izinli": ["Tercihler", "Rutinler"] },
+    { "id": "c6", "kategori": "cikarma", "mesaj": "Salı ve perşembe günleri okula gidiyorum, cuma günleri evden çalışıyorum.", "gerekli": [], "izinli": ["Okul", "Rutinler"] },
+
+    { "id": "r1", "kategori": "router", "mesaj": "Kedimin adı neydi?", "beklenen": "Kisisel" },
+    { "id": "r2", "kategori": "router", "mesaj": "Entropi nedir?", "beklenen": "GenelBilgi" },
+    { "id": "r3", "kategori": "router", "mesaj": "Dolar bugün kaç TL?", "beklenen": "Guncel" },
+    { "id": "r4", "kategori": "router", "mesaj": "Yüklediğim Termo notlarında Carnot çevrimi nasıl anlatılmış?", "beklenen": "Belge" },
+    { "id": "r5", "kategori": "router", "mesaj": "Yarın sabah 8'de bana ilaçlarımı hatırlat.", "beklenen": "Komut" },
+    { "id": "r6", "kategori": "router", "mesaj": "Naber, nasılsın?", "beklenen": "Sohbet" },
+    { "id": "r7", "kategori": "router", "mesaj": "Bu hafta İstanbul'da hava nasıl olacak?", "beklenen": "Guncel" },
+
+    { "id": "a1", "kategori": "arac", "mesaj": "Yarın sabah 9'da annemi aramamı hatırlat.", "beklenen_arac": "hatirlatici_kur", "gerekli_argumanlar": ["metin", "zaman"] },
+    { "id": "a2", "kategori": "arac", "mesaj": "Ankara'da yarın hava nasıl olacak?", "beklenen_arac": "hava_durumu", "gerekli_argumanlar": ["sehir"] },
+    { "id": "a3", "kategori": "arac", "mesaj": "Visual Studio'yu açar mısın?", "beklenen_arac": "uygulama_ac", "gerekli_argumanlar": ["uygulama"] },
+    { "id": "a4", "kategori": "arac", "mesaj": "Entropi nedir, kısaca?", "beklenen_arac": null },
+    { "id": "a5", "kategori": "arac", "mesaj": "Her pazartesi sabah 8'de bana haftalık planımı hatırlat.", "beklenen_arac": "hatirlatici_kur", "gerekli_argumanlar": ["metin", "zaman", "tekrar"] },
+
+    { "id": "g1", "kategori": "gorsel", "aciklama": "Basılı ders notu (Termodinamik tanımı, sistem, ısı ve sıcaklık)", "dosya": "gorseller/g1.png", "mesaj": "Görseldeki TÜM yazıları satır satır, olduğu gibi yaz; özetleme, atlama. En sonda Özet: diye başlayan tek bir cümle ekle.", "anahtar_kelimeler": ["Lord Kelvin", "1849", "kontrol hacmi"] },
+    { "id": "g2", "kategori": "gorsel", "aciklama": "El yazısı not: Otto çevrimi, P-V ve T-S diyagramları, formüller", "dosya": "gorseller/g2.png", "mesaj": "Görseldeki TÜM yazıları satır satır, olduğu gibi yaz; özetleme, atlama. En sonda Özet: diye başlayan tek bir cümle ekle.", "anahtar_kelimeler": ["Otto"] },
+    { "id": "g3", "kategori": "gorsel", "aciklama": "Beyaz tahta fotoğrafı: kapalı ve açık sistemler", "dosya": "gorseller/g3.jpg", "mesaj": "Görseldeki TÜM yazıları satır satır, olduğu gibi yaz; özetleme, atlama. En sonda Özet: diye başlayan tek bir cümle ekle.", "anahtar_kelimeler": ["Kapalı", "Açık", "Türbin"] },
+    { "id": "g4", "kategori": "gorsel", "aciklama": "Basılı formüller: kütle, enerji, entropi, ekserji dengesi", "dosya": "gorseller/g4.jpg", "mesaj": "Görseldeki TÜM yazıları satır satır, olduğu gibi yaz; özetleme, atlama. En sonda Özet: diye başlayan tek bir cümle ekle.", "anahtar_kelimeler": ["Kütle", "Entropi", "Ekserji"] }
+  ],
+
+  "embedding": {
+    "kayitlar": [
+      "Kedisinin adı Pamuk ve 3 yaşında",
+      "Bu dönem Termodinamik II ve Akışkanlar Mekaniği dersleri alıyor",
+      "Kız kardeşi Elif İstanbul'da tıp okuyor",
+      "Staj için ASELSAN'a başvurdu",
+      "Kahveyi şekersiz içiyor",
+      "Salı ve perşembe günleri okula gidiyor",
+      ".NET backend geliştirici olmayı hedefliyor",
+      "Laptopu Excalibur G870, ekran kartı RTX 5060",
+      "Fıstığa alerjisi var",
+      "Hafta sonları halı sahada futbol oynuyor"
+    ],
+    "sorgular": [
+      { "soru": "Evcil hayvanımın ismi neydi?", "dogru": 0 },
+      { "soru": "Bu dönem hangi derslerim var?", "dogru": 1 },
+      { "soru": "Kardeşim hangi bölümde okuyordu?", "dogru": 2 },
+      { "soru": "Nereye staj başvurusu yapmıştım?", "dogru": 3 },
+      { "soru": "Kahvemi nasıl içerim?", "dogru": 4 },
+      { "soru": "Hangi günler kampüse gidiyorum?", "dogru": 5 },
+      { "soru": "Kariyer hedefim neydi?", "dogru": 6 },
+      { "soru": "Bilgisayarımın GPU'su ne?", "dogru": 7 },
+      { "soru": "Yemeklerde nelere dikkat etmem lazım?", "dogru": 8 },
+      { "soru": "Hafta sonu hangi sporu yapıyorum?", "dogru": 9 }
+    ]
+  }
+}

@@ -1,0 +1,709 @@
+﻿@* İş arayüzü (Faz 16, tasarım kararı): ekranın yarısı konuşma, yarısı render alanı (Önizleme · Kod · Sürümler).
+   kullanıcı tarif ettikçe aynı bileşen güncellenir; Ultron yazarken önizleme canlı değişir. Ultron önce kendisi dener (tarif defteri +
+   zevk profili), otomatik kontrol sorun bulursa bir kez kendisi düzeltir; bilmediğinde "Claude'a yaptırayım mı?" diye sorar.
+   Görünüm: Claude benzeri, koyu (tasarım kararı). *@
+@implements IAsyncDisposable
+@using System.IO
+@using System.Text.Json
+@inject UltronClient Client
+@inject IJSRuntime JS
+
+<div class="studio @(_entered ? "in" : "")">
+    <header class="st-top" id="st-top">
+        @* Oturumlar yan yana (2026-10-31): fareyle basılı tutup sağa-sola sürükleyerek ya da tekerlekle kaydırılır (ultron.js .drag-scroll). *@
+        <div class="st-sessions drag-scroll" role="tablist" aria-label="Oturumlar">
+            @if (_projects.Count == 0)
+            {
+                <span class="muted st-sessions-empty">Henüz oturum yok: "+ Yeni" ile başla.</span>
+            }
+            @foreach (var p in _projects)
+            {
+                <button role="tab" aria-selected="@(p.Id == _project?.Project.Id)" class="st-session @(p.Id == _project?.Project.Id ? "on" : "")" title="@p.Name" @onclick="() => OpenAsync(p.Id)">@p.Name</button>
+            }
+        </div>
+        <div class="st-right">
+            <button class="st-ghost" title="Yeni oturum" @onclick="NewProjectAsync">+ Yeni</button>
+            @if (_project is not null)
+            {
+                @if (_confirmDelete)
+                {
+                    <span class="st-confirm">Oturum silinsin mi?
+                        <button class="st-ghost danger" @onclick="DeleteProjectAsync">Sil</button>
+                        <button class="st-ghost" @onclick="() => _confirmDelete = false">Vazgeç</button>
+                    </span>
+                }
+                else
+                {
+                    <button class="st-ghost" title="Bu oturumu sohbeti ve sürümleriyle sil" @onclick="() => _confirmDelete = true">Sil</button>
+                }
+            }
+        </div>
+    </header>
+
+    <div class="st-body">
+        @* ---- Sol: konuşma ---- *@
+        <section class="st-chat" aria-label="Konuşma">
+            <div class="st-messages" @ref="_messagesEl">
+                @if (_project is null || _messages.Count == 0)
+                {
+                    <div class="st-empty">
+                        <h2>Ne yapalım?</h2>
+                        <p>Bir bileşen tarif et; yazdıkça sağda önizlemesi oluşur. Sonra "butonu sağa al", "daha koyu yap" gibi değişiklikleri söyle.</p>
+                        <div class="st-examples">
+                            @foreach (var example in Examples)
+                            {
+                                <button @onclick="() => UseExample(example)">@example</button>
+                            }
+                        </div>
+                    </div>
+                }
+                @foreach (var m in _messages)
+                {
+                    <div class="st-msg @(m.FromUser ? "user" : "bot")">
+                        @if (m.ImagePreview is not null)
+                        {
+                            <img class="st-msg-img" src="@m.ImagePreview" alt="Eklenen görsel" />
+                        }
+                        <div class="st-msg-text">@m.Text</div>
+                        @if (m.Note is not null)
+                        {
+                            <div class="st-msg-note">@m.Note</div>
+                        }
+                        @if (m.VersionNumber is { } n)
+                        {
+                            <button class="st-chip" title="Bu sürümü önizlemede göster" @onclick="() => ShowVersionAsync(m.VersionId!.Value)">Sürüm @n</button>
+                        }
+                    </div>
+                }
+
+                @if (_offerClaude is { } offer)
+                {
+                    <div class="st-card">
+                        <div class="st-card-title">@offer</div>
+                        <div class="st-card-text">Claude Code bileşeni yazar (birkaç dakika sürer, aboneliğini kullanır); sonuç tarif defterine geçer, bir dahakine ben yaparım.</div>
+                        <div class="st-card-actions">
+                            <button class="st-ghost" @onclick="() => _offerClaude = null">Gerek yok</button>
+                            <button class="st-primary" @onclick="StartClaudeAsync">Claude'a yaptır</button>
+                        </div>
+                    </div>
+                }
+                @if (_claudeStatus is not null)
+                {
+                    <div class="st-status">@_claudeStatus</div>
+                }
+            </div>
+
+            <div class="st-composer">
+                @if (_pendingImage is not null)
+                {
+                    <div class="st-pending">
+                        <img src="@_pendingImage.Preview" alt="" />
+                        <span>Görsel referans ekli · @_pendingImage.Name</span>
+                        <button title="Görseli kaldır" @onclick="() => _pendingImage = null">✕</button>
+                    </div>
+                }
+                <div class="st-input">
+                    <textarea @ref="_promptEl" rows="1" placeholder="@(_versions.Count == 0 ? "Bir bileşen tarif et… (görsel yapıştırabilirsin)" : "Değişikliği söyle… (ör. butonu sağa al)")"
+                              @bind="_draft" @bind:event="oninput" disabled="@_busy"></textarea>
+                    <label class="st-attach" title="Görsel referans ekle">
+                        <InputFile OnChange="OnImagePickedAsync" accept="image/*" />
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M21 12.5 12.6 21a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6L15 8.2" /></svg>
+                    </label>
+                    @* Tek düğme (Enter bu düğmeye basar): yazarken gönder, üretim sürerken durdur. *@
+                    <button class="st-send @(_busy ? "stop" : "")" @ref="_sendEl" title="@(_busy ? "Durdur" : "Gönder (Enter)")"
+                            disabled="@(!_busy && string.IsNullOrWhiteSpace(_draft) && _pendingImage is null)" @onclick="SendOrStopAsync">@(_busy ? "■" : "↑")</button>
+                </div>
+            </div>
+        </section>
+
+        @* ---- Sağ: render alanı ---- *@
+        <section class="st-render" aria-label="Render alanı">
+            <div class="st-tabs">
+                <div class="st-tablist" role="tablist">
+                    <button role="tab" aria-selected="@(_tab == Tab.Preview)" class="@(_tab == Tab.Preview ? "on" : "")" @onclick="() => _tab = Tab.Preview">Önizleme</button>
+                    <button role="tab" aria-selected="@(_tab == Tab.Code)" class="@(_tab == Tab.Code ? "on" : "")" @onclick="() => _tab = Tab.Code">Kod</button>
+                    <button role="tab" aria-selected="@(_tab == Tab.Versions)" class="@(_tab == Tab.Versions ? "on" : "")" @onclick="() => _tab = Tab.Versions">Sürümler @(_versions.Count > 0 ? _versions.Count.ToString() : "")</button>
+                </div>
+                <div class="st-tools">
+                    @if (_tab == Tab.Preview)
+                    {
+                        <button class="@(_view == View.Phone ? "on" : "")" title="Telefon" @onclick="() => _view = View.Phone">📱</button>
+                        @if (_view == View.Phone)
+                        {
+                            <select class="st-device-pick" title="Telefon modeli" @bind="_phoneName">
+                                @foreach (var p in Phones)
+                                {
+                                    <option value="@p.Name">@p.Name</option>
+                                }
+                            </select>
+                        }
+                        <button class="@(_view == View.Tablet ? "on" : "")" title="Tablet (iPad, 820 × 1180)" @onclick="() => _view = View.Tablet">▭</button>
+                        <button class="@(_view == View.Desktop ? "on" : "")" title="Masaüstü (tam genişlik)" @onclick="() => _view = View.Desktop">🖥</button>
+                    }
+                    <button title="Kodu kopyala" disabled="@(_shown is null)" @onclick="CopyAsync">@(_copied ? "Kopyalandı" : "Kopyala")</button>
+                </div>
+            </div>
+
+            <div class="st-stage">
+                <div class="st-preview @(_tab == Tab.Preview ? "" : "hidden")">
+                    <div class="st-device @(_view == View.Phone ? "phone" : _view == View.Tablet ? "tablet" : "")" style="@DeviceStyle">
+                        <div class="st-frame-host @(_dark ? "dark" : "")" @ref="_viewHost"></div>
+                    </div>
+                    @if (_shown is null && !_busy)
+                    {
+                        <div class="st-placeholder">Önizleme burada görünecek.</div>
+                    }
+                    @if (_busy && _liveCode.Length > 0)
+                    {
+                        <div class="st-writing">Yazılıyor… @LineCount(_liveCode) satır</div>
+                    }
+                </div>
+                @if (_tab == Tab.Code)
+                {
+                    <pre class="st-code"><code>@(_busy && _liveCode.Length > 0 ? _liveCode : _shown?.Code ?? "Henüz kod yok.")</code></pre>
+                }
+                @if (_tab == Tab.Versions)
+                {
+                    <div class="st-versions">
+                        @foreach (var v in _versions.AsEnumerable().Reverse())
+                        {
+                            <button class="st-version @(v.Id == _shown?.Id ? "on" : "")" @onclick="() => ShowVersionAsync(v.Id)">
+                                <span class="st-v-num">v@(v.Number)</span>
+                                <span class="st-v-req">@Short(v.Request, 90)</span>
+                                <span class="st-v-meta">@SourceLabel(v.Source) · @v.CreatedAtLocal.ToString("dd.MM HH:mm")@(v.Rating > 0 ? " · 👍" : v.Rating < 0 ? " · 👎" : "")@(v.ChecksPassed == false ? " · kontrol: sorun" : "")</span>
+                            </button>
+                        }
+                        @if (_versions.Count == 0)
+                        {
+                            <div class="st-placeholder static">Henüz sürüm yok.</div>
+                        }
+                    </div>
+                }
+                <div class="st-check-host" @ref="_checkHost" aria-hidden="true"></div>
+            </div>
+
+            @if (_shown is { } shown)
+            {
+                <footer class="st-foot">
+                    <div class="st-checks">
+                        @if (_checking)
+                        {
+                            <span class="muted">Kontrol ediliyor…</span>
+                        }
+                        else if (_problems is { Count: 0 })
+                        {
+                            <span class="ok">✓ Kontrol: hata yok, telefonda taşmıyor, erişilebilirlik temel kuralları tamam</span>
+                        }
+                        else if (_problems is { Count: > 0 } problems)
+                        {
+                            <details>
+                                <summary class="warn">⚠ Kontrol: @problems.Count sorun</summary>
+                                <ul>@foreach (var p in problems) { <li>@p</li> }</ul>
+                            </details>
+                        }
+                    </div>
+                    <div class="st-rate">
+                        <span class="muted">v@(shown.Number) · @SourceLabel(shown.Source)</span>
+                        <button class="@(shown.Rating > 0 ? "on" : "")" title="Beğendim: tarif defterine favori olarak ekle" @onclick="() => RateAsync(1)">👍</button>
+                        <button class="@(shown.Rating < 0 ? "on" : "")" title="Beğenmedim: neyi beğenmediğini yaz, zevk profiline kural olur" @onclick="() => _dislikeOpen = !_dislikeOpen">👎</button>
+                    </div>
+                </footer>
+                @if (_dislikeOpen)
+                {
+                    <div class="st-dislike">
+                        <input placeholder="Neyi beğenmedin? (ör. köşeler daha yuvarlak olsun) — kural olarak saklanır" @bind="_dislikeNote" @bind:event="oninput"
+                               @onkeydown="@(e => e.Key == "Enter" ? RateAsync(-1) : Task.CompletedTask)" />
+                        <button class="st-primary" @onclick="() => RateAsync(-1)">Kaydet</button>
+                    </div>
+                }
+            }
+        </section>
+    </div>
+
+    @* Sürükle-bırak (2026-10-31): görsel → mesaja referans olarak eklenir (katmanı ultron.js açar). *@
+    <div class="drop-zone">
+        <div class="drop-card">
+            <div class="drop-title">GÖRSEL EKLE</div>
+            <div class="muted">Görsel → mesajına referans olarak eklenir (ekran görüntüsü, tasarım örneği)</div>
+        </div>
+        <InputFile OnChange="OnImagePickedAsync" accept="image/*" />
+    </div>
+</div>
+
+@code {
+
+
+    private static readonly string[] Examples =
+    [
+        "Logosu solda, menüsü ortada, sağda giriş butonu olan yapışkan navbar; mobilde hamburger",
+        "Profil fotoğraflı açılır kullanıcı menüsü",
+        "Birincil, ikincil ve hayalet buton seti; yükleniyor durumu da olsun",
+        "Üç planlı fiyat kartları, ortadaki öne çıksın",
+    ];
+
+    private enum Tab { Preview, Code, Versions }
+
+    private sealed class Msg
+    {
+        public bool FromUser { get; init; }
+        public string Text { get; set; } = "";
+        public string? Note { get; set; }
+        public long? VersionId { get; set; }
+        public int? VersionNumber { get; set; }
+        public string? ImagePreview { get; init; }
+    }
+
+    private IReadOnlyList<StudioProjectDto> _projects = [];
+    private StudioOpenDto? _project;
+    private readonly List<Msg> _messages = [];
+    private List<StudioVersionDto> _versions = [];
+    private StudioVersionDto? _shown;
+
+    private Tab _tab = Tab.Preview;
+    /// <summary>Önizleme cihazı (2026-10-31): genişlik Blazor'da tutulur (eski JS yolu yeniden çizimde kayboluyordu).</summary>
+    private enum View { Desktop, Tablet, Phone }
+
+    private sealed record Phone(string Name, int Width, int Height);
+
+    /// <summary>Son telefonların CSS ekran ölçüleri (pt/dp): önizleme bu boyutta çizilir.</summary>
+    private static readonly Phone[] Phones =
+    [
+        new("iPhone 17 Pro", 402, 874),
+        new("iPhone 17 Pro Max", 440, 956),
+        new("iPhone 16e", 390, 844),
+        new("Galaxy S25 Ultra", 412, 891),
+        new("Pixel 10 Pro", 410, 914),
+        new("Xiaomi 15", 393, 873),
+    ];
+
+    private View _view = View.Desktop;
+    private string _phoneName = Phones[0].Name;
+
+    private Phone SelectedPhone => Phones.FirstOrDefault(p => p.Name == _phoneName) ?? Phones[0];
+
+    private string DeviceStyle => _view switch
+    {
+        View.Phone => $"width:{SelectedPhone.Width}px;height:{SelectedPhone.Height}px",
+        View.Tablet => "width:820px;height:1180px",
+        _ => "",
+    };
+
+    private bool _dark, _busy, _checking, _copied, _entered, _dislikeOpen, _mounted;
+    private string _draft = "", _liveCode = "", _dislikeNote = "";
+    private string? _offerClaude, _claudeStatus;
+    private List<string>? _problems;
+    private PendingImage? _pendingImage;
+    private ElementReference _messagesEl, _promptEl, _sendEl, _viewHost, _checkHost;
+    private DotNetObjectReference<StudioView>? _self;
+    private CancellationTokenSource? _cts;
+
+    // Otomatik düzeltme zinciri: yeni üretimde bir kez kendi düzeltmesi, o da başarısızsa Claude önerisi.
+    private int _checkSeq;
+    private long _checkVersionId;
+    private bool _fixAttempted, _knownPattern = true, _autoChain;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Client.StudioUpdate += OnStudioUpdate;
+        Client.StudioReviewed += OnStudioReviewed;
+        try
+        {
+            _projects = await Client.ListStudioProjectsAsync();
+            if (_projects.Count > 0)
+                await OpenAsync(_projects[0].Id, render: false);
+        }
+        catch (Exception ex)
+        {
+            _claudeStatus = "İş arayüzü açılamadı: " + ex.Message;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _self = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("ultronStudio.mount", _viewHost, _checkHost, _self);
+            await JS.InvokeVoidAsync("ultron.bindComposer", _promptEl, _sendEl);
+            _mounted = true;
+            _entered = true; // geçiş efekti
+            if (_shown is not null)
+                await JS.InvokeVoidAsync("ultronStudio.final", _shown.Code, 0);
+            StateHasChanged();
+        }
+        await JS.InvokeVoidAsync("ultronStudio.scrollToBottom", _messagesEl);
+    }
+
+    // ---- Projeler ----
+
+    private async Task OpenAsync(long id, bool render = true)
+    {
+        _project = await Client.OpenStudioProjectAsync(id);
+        _messages.Clear();
+        _offerClaude = null;
+        _problems = null;
+        if (_project is null)
+            return;
+        _versions = _project.Versions.ToList();
+        foreach (var m in _project.Messages)
+            _messages.Add(new Msg
+            {
+                FromUser = m.FromUser, Text = m.Content, VersionId = m.VersionId,
+                VersionNumber = m.VersionId is { } vid ? _versions.FirstOrDefault(v => v.Id == vid)?.Number : null,
+            });
+        _shown = _versions.FirstOrDefault(v => v.Id == _project.Project.CurrentVersionId) ?? _versions.LastOrDefault();
+        _problems = _shown?.CheckReport is { Length: > 0 } report ? ParseProblems(report) : _shown?.ChecksPassed == true ? [] : null;
+        if (render && _mounted && _shown is not null)
+            await JS.InvokeVoidAsync("ultronStudio.final", _shown.Code, 0);
+    }
+
+    private async Task NewProjectAsync()
+    {
+        var project = await Client.CreateStudioProjectAsync("Yeni bileşen");
+        _projects = await Client.ListStudioProjectsAsync();
+        await OpenAsync(project.Id);
+        await JS.InvokeVoidAsync("ultronStudio.final", "export default function Bos(){return null}", 0);
+        await JS.InvokeVoidAsync("ultron.focus", _promptEl);
+    }
+
+    private bool _confirmDelete;
+
+    private async Task DeleteProjectAsync()
+    {
+        _confirmDelete = false;
+        if (_project is null || _busy)
+            return;
+        await Client.DeleteStudioProjectAsync(_project.Project.Id);
+        _projects = await Client.ListStudioProjectsAsync();
+        _project = null;
+        _messages.Clear();
+        _versions = [];
+        _shown = null;
+        _problems = null;
+        if (_projects.Count > 0)
+            await OpenAsync(_projects[0].Id);
+        else
+            await JS.InvokeVoidAsync("ultronStudio.final", "export default function Bos(){return null}", 0);
+    }
+
+    private void UseExample(string example) => _draft = example;
+
+    // ---- Üretim ----
+
+    private async Task SendAsync()
+    {
+        var text = _draft.Trim();
+        if ((text.Length == 0 && _pendingImage is null) || _busy)
+            return;
+        if (_project is null)
+        {
+            var created = await Client.CreateStudioProjectAsync("Yeni bileşen");
+            _project = new StudioOpenDto(created, [], []);
+        }
+        var image = _pendingImage;
+        _pendingImage = null;
+        _draft = "";
+        await JS.InvokeVoidAsync("ultron.resetComposer", _promptEl);
+        _messages.Add(new Msg { FromUser = true, Text = text.Length > 0 ? text : "(görsel)", ImagePreview = image?.Preview });
+        _fixAttempted = false;
+        _autoChain = true;
+        await RunAsync(Client.SendStudioMessageAsync(_project.Project.Id, text, image?.Jpeg, Token()));
+        _projects = await Client.ListStudioProjectsAsync(); // ilk istek projenin adı olur
+    }
+
+    private CancellationToken Token()
+    {
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        return _cts.Token;
+    }
+
+    private Task SendOrStopAsync()
+    {
+        if (!_busy)
+            return SendAsync();
+        _cts?.Cancel();
+        return Task.CompletedTask;
+    }
+
+    private async Task RunAsync(IAsyncEnumerable<StudioEventDto> events)
+    {
+        _busy = true;
+        _offerClaude = null;
+        _liveCode = "";
+        var reply = new Msg { FromUser = false, Text = "…" };
+        _messages.Add(reply);
+        var raw = new System.Text.StringBuilder();
+        StateHasChanged();
+        try
+        {
+            await foreach (var e in events)
+            {
+                switch (e.Type)
+                {
+                    case "started":
+                        _knownPattern = e.KnownPattern ?? true;
+                        reply.Note = e.Recipes is { Count: > 0 } r ? "Tarif defterinden: " + string.Join(", ", r) : null;
+                        break;
+                    case "chunk":
+                        raw.Append(e.Text);
+                        var (code, prose) = SplitLive(raw.ToString());
+                        reply.Text = prose.Length > 0 ? prose : "Bileşeni yazıyorum…";
+                        if (code is not null && code.Length != _liveCode.Length)
+                        {
+                            _liveCode = code;
+                            await JS.InvokeVoidAsync("ultronStudio.live", code);
+                        }
+                        break;
+                    case "completed" when e.Version is { } version:
+                        reply.Text = string.IsNullOrWhiteSpace(e.Text) ? $"Sürüm {version.Number} hazır." : e.Text!;
+                        reply.VersionId = version.Id;
+                        reply.VersionNumber = version.Number;
+                        _versions.Add(version);
+                        await ShowAsync(version, check: true);
+                        break;
+                    case "failed":
+                        reply.Text = e.Text ?? "Bir sorun çıktı.";
+                        break;
+                }
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            reply.Text = "Durduruldu.";
+        }
+        catch (Exception ex)
+        {
+            reply.Text = "Bağlantı sorunu: " + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+            _liveCode = "";
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Akan cevapta kod bloğu (kapanmamış olabilir) ve dışındaki açıklama.</summary>
+    private static (string? Code, string Prose) SplitLive(string text)
+    {
+        var start = text.IndexOf("```", StringComparison.Ordinal);
+        if (start < 0)
+            return (null, text.Trim());
+        var lineEnd = text.IndexOf('\n', start);
+        if (lineEnd < 0)
+            return ("", text[..start].Trim());
+        var end = text.IndexOf("```", lineEnd, StringComparison.Ordinal);
+        var code = end < 0 ? text[(lineEnd + 1)..] : text[(lineEnd + 1)..end];
+        var prose = (text[..start] + (end < 0 ? "" : text[(end + 3)..])).Trim();
+        return (code, prose);
+    }
+
+    private async Task ShowAsync(StudioVersionDto version, bool check)
+    {
+        _shown = version;
+        _tab = Tab.Preview;
+        _problems = null;
+        _dislikeOpen = false;
+        if (check)
+        {
+            _checking = true;
+            _checkSeq++;
+            _checkVersionId = version.Id;
+        }
+        else
+        {
+            _problems = version.CheckReport is { Length: > 0 } report ? ParseProblems(report) : version.ChecksPassed == true ? [] : null;
+        }
+        await JS.InvokeVoidAsync("ultronStudio.final", version.Code, check ? _checkSeq : 0);
+    }
+
+    private async Task ShowVersionAsync(long versionId)
+    {
+        if (_project is null || _versions.FirstOrDefault(v => v.Id == versionId) is not { } version)
+            return;
+        await Client.SelectStudioVersionAsync(_project.Project.Id, versionId);
+        _autoChain = false;
+        await ShowAsync(version, check: version.ChecksPassed is null);
+    }
+
+    // ---- Önizleme geri bildirimi (studio.js) ----
+
+    [JSInvokable]
+    public Task OnPreviewRendered(int seq, bool final) => Task.CompletedTask;
+
+    [JSInvokable]
+    public Task OnPreviewError(string message) => InvokeAsync(() =>
+    {
+        if (!_busy)
+            _problems = ["Derleme hatası: " + message];
+        StateHasChanged();
+    });
+
+    [JSInvokable]
+    public async Task OnPreviewChecked(int seq, string problemsJson)
+    {
+        if (seq != _checkSeq)
+            return;
+        var problems = JsonSerializer.Deserialize<List<string>>(problemsJson) ?? [];
+        var versionId = _checkVersionId;
+        await InvokeAsync(async () =>
+        {
+            _checking = false;
+            _problems = problems;
+            var index = _versions.FindIndex(v => v.Id == versionId);
+            if (index >= 0)
+                _versions[index] = _versions[index] with { ChecksPassed = problems.Count == 0, CheckReport = string.Join("\n", problems) };
+            if (_shown?.Id == versionId)
+                _shown = _versions[index];
+            StateHasChanged();
+            try
+            {
+                await Client.ReportStudioCheckAsync(versionId, problems.Count == 0, string.Join("\n", problems));
+            }
+            catch (Exception ex)
+            {
+                DesktopLog.Write("Kontrol sonucu gönderilemedi: " + ex.Message);
+            }
+            await ContinueChainAsync(versionId, problems);
+        });
+    }
+
+    /// <summary>Kontrolden sonra: sorun varsa bir kez kendi düzeltmesi; yine sorun varsa ya da defterde tarif yoksa Claude önerisi.</summary>
+    private async Task ContinueChainAsync(long versionId, List<string> problems)
+    {
+        if (!_autoChain || _project is null || _busy)
+            return;
+        if (problems.Count > 0 && !_fixAttempted)
+        {
+            _fixAttempted = true;
+            _messages.Add(new Msg { FromUser = false, Text = $"Kontrol {problems.Count} sorun buldu; düzeltiyorum." });
+            await RunAsync(Client.FixStudioComponentAsync(_project.Project.Id, versionId, string.Join("\n", problems), Token()));
+            return;
+        }
+        _autoChain = false;
+        if (problems.Count > 0)
+            _offerClaude = "İki denemede de kontrol sorun buldu. Claude'a yaptırayım mı?";
+        else if (!_knownPattern)
+            _offerClaude = "Defterimde buna benzeyen bir tarif yoktu; kendi denemem bu. Claude'a yaptırayım mı?";
+        StateHasChanged();
+    }
+
+    // ---- Claude ----
+
+    private async Task StartClaudeAsync()
+    {
+        if (_project is null)
+            return;
+        _offerClaude = null;
+        _claudeStatus = await Client.StartClaudeComponentAsync(_project.Project.Id, null);
+    }
+
+    private void OnStudioUpdate(StudioUpdateDto update) => InvokeAsync(async () =>
+    {
+        if (_project?.Project.Id != update.ProjectId)
+            return;
+        _claudeStatus = update.Finished ? null : "Claude: " + update.Status;
+        if (update.Finished)
+        {
+            var msg = new Msg { FromUser = false, Text = update.Status };
+            if (update.Version is { } version)
+            {
+                msg.VersionId = version.Id;
+                msg.VersionNumber = version.Number;
+                _versions.Add(version);
+                _autoChain = false;
+                await ShowAsync(version, check: true);
+            }
+            _messages.Add(msg);
+        }
+        StateHasChanged();
+    });
+
+    private void OnStudioReviewed(int reviewed, int recipes, int rules) => InvokeAsync(() =>
+    {
+        _messages.Add(new Msg { FromUser = false, Text = $"Gece denetimi: {reviewed} bileşenim incelendi; {recipes} düzeltilmiş tarif ve {rules} yeni zevk kuralı öğrendim (Zevk panelinde)." });
+        StateHasChanged();
+    });
+
+    // ---- Önizleme araçları ----
+
+    private async Task CopyAsync()
+    {
+        if (_shown is null)
+            return;
+        _copied = await JS.InvokeAsync<bool>("ultronStudio.copy", _shown.Code);
+        StateHasChanged();
+        await Task.Delay(1500);
+        _copied = false;
+    }
+
+    // ---- Geri bildirim ve zevk profili ----
+
+    private async Task RateAsync(int rating)
+    {
+        if (_shown is null)
+            return;
+        var note = rating < 0 ? _dislikeNote.Trim() : null;
+        var answer = await Client.RateStudioVersionAsync(_shown.Id, rating, note);
+        var index = _versions.FindIndex(v => v.Id == _shown.Id);
+        if (index >= 0)
+            _shown = _versions[index] = _versions[index] with { Rating = rating, Feedback = note };
+        _dislikeOpen = false;
+        _dislikeNote = "";
+        _messages.Add(new Msg { FromUser = false, Text = answer });
+    }
+
+    // ---- Görsel referans ----
+
+    private async Task OnImagePickedAsync(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            await using var stream = e.File.OpenReadStream(maxAllowedSize: 30L * 1024 * 1024);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            _pendingImage = new PendingImage(ImageTools.Prepare(buffer.ToArray()), e.File.Name);
+        }
+        catch (Exception ex)
+        {
+            DesktopLog.Write($"Görsel okunamadı ({e.File.Name}): {ex.Message}");
+        }
+    }
+
+    /// <summary>UltronApp'tan: İş modundayken Ctrl+V ile yapıştırılan görsel.</summary>
+    public Task SetPastedImageAsync(byte[] image, string name) => InvokeAsync(() =>
+    {
+        _pendingImage = new PendingImage(ImageTools.Prepare(image), string.IsNullOrWhiteSpace(name) ? "yapıştırılan görsel" : name);
+        StateHasChanged();
+    });
+
+    // ---- Yardımcılar ----
+
+    private static List<string> ParseProblems(string report) =>
+        report.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    private static int LineCount(string code) => code.Count(c => c == '\n') + 1;
+
+    private static string Short(string s, int max) => s.Length <= max ? s : s[..max] + "…";
+
+    private static string Percent(int part, int whole) => whole == 0 ? "–" : $"%{100 * part / whole}";
+
+    private static string SourceLabel(string source) => source switch
+    {
+        "Claude" => "Claude yaptı",
+        "Duzeltme" => "Ultron düzeltti",
+        _ => "Ultron yaptı",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        Client.StudioUpdate -= OnStudioUpdate;
+        Client.StudioReviewed -= OnStudioReviewed;
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _self?.Dispose();
+        await Task.CompletedTask;
+    }
+}

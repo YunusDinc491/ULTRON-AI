@@ -1,0 +1,9 @@
+{
+  "aciklama": "Öğretim 3 (gece, 2026-10-28 05:20): tur4'te eksik çıkan GENEL kavramlar. Kontrol setindeki konular bilerek YOK.",
+  "sorular": [
+    { "id": "r01", "konu": "fizik", "soru": "Şunu bil, unutma: Lityum iyon pil soğukta daha hızlı bitiyor gibi görünür çünkü düşük sıcaklıkta kimyasal tepkimeler ve iyon hareketi yavaşlar, pilin iç direnci artar ve yük altında voltaj düşer. Telefon bu düşük voltajı az şarj sanıp yüzdeyi düşük gösterir ya da kapanır; enerjinin çoğu aslında kaybolmamıştır, pil ısınınca yüzde kısmen geri gelir." },
+    { "id": "r02", "konu": "aspnetcore", "soru": "Şunu bil, unutma: ASP.NET Core API'de binlerce kaydı dönen bir liste endpoint'i yavaşsa sırasıyla şunlara bakılır: tüm listeyi asla tek seferde döndürme, sayfalama ekle (OrderBy + Skip/Take ya da keyset); sadece gereken alanları Select ile DTO'ya projekte et; salt okuma sorgusunda AsNoTracking kullan; filtrelenen ve sıralanan sütunlara index ekle; önce süreyi ölç (loglama, EF Core sorgu logu) sonra iyileştir." },
+    { "id": "r03", "konu": "verimlilik", "soru": "Şunu bil, unutma: Sınav ya da sunum gibi ertesi gün performans gereken bir işte gece uykusuz kalmak verimi düşürür; uyku öğrenileni hafızada pekiştirir, uykusuzluk dikkat ve hatırlamayı bozar. İyi plan: önce en önemli kısmı bitir, bir kez prova et, en az 6-7 saat uyu, sabah kısa bir tekrar yap." },
+    { "id": "r04", "konu": "csharp", "soru": "Şunu bil, unutma: .NET'te her istek için new HttpClient() oluşturup atmak soket tükenmesine (port exhaustion) ve DNS değişikliklerinin görülmemesine yol açar. Doğrusu IHttpClientFactory ile builder.Services.AddHttpClient() kullanmak ya da uzun ömürlü tek bir HttpClient'ı paylaşmaktır." }
+  ]
+}

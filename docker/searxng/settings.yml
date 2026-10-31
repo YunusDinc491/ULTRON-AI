@@ -1,0 +1,31 @@
+# SearXNG ayarları: varsayılanların üstüne sadece değiştirdiklerimiz.
+use_default_settings: true
+
+general:
+  instance_name: "Ultron Arama"
+
+search:
+  # Ultron sonuçları JSON olarak okur; html de açık kalsın, tarayıcıdan elle deneyebilelim.
+  formats:
+    - html
+    - json
+  default_lang: "tr-TR"
+  safe_search: 0
+  autocomplete: ""
+
+server:
+  # Gizli anahtar SEARXNG_SECRET ortam değişkeninden gelir.
+  secret_key: "ortam-degiskeninden-gelir"
+  # Tek kullanıcı, sadece localhost: istek sınırlayıcıya (ve onun Redis/Valkey bağımlılığına) gerek yok.
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+ui:
+  default_locale: "tr"
+
+# Faz 20: daha fazla kaynak. 2026-10-29 denemesi: Bing çalışıyor (varsayılan kapalıydı, açıldı); Google, Qwant, Yandex engelli.
+# Startpage ve Mojeek bu SearXNG sürümünde yok (önceki denemede yanlışlıkla "çalışıyor" görünmüştü).
+engines:
+  - name: bing
+    disabled: false

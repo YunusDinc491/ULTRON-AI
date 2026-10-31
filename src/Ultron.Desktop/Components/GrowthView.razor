@@ -1,0 +1,190 @@
+@* Gelişim panosu (Faz 18, kullanıcının kararları): ana arayüzde tam ekran; üstte sayı kartları, altta son 8 haftanın çizgi
+   grafikleri; gece raporlarının geçmişi; Öğrenme paneli bir sekme. Görünüm İş/Ders ailesiyle aynı (koyu). *@
+@inject UltronClient Client
+
+<div class="studio growth @(_entered ? "in" : "")">
+    <header class="st-top">
+        <div class="st-brand">
+            <span class="ls-crumb">Gelişim</span>
+        </div>
+        <div class="st-right">
+            <button class="st-ghost" title="Yenile" @onclick="LoadAsync">Yenile</button>
+        </div>
+    </header>
+
+    <div class="gr-body">
+        <div class="st-tablist gr-tabs" role="tablist">
+            @foreach (var (tab, label) in Tabs)
+            {
+                <button role="tab" aria-selected="@(_tab == tab)" class="@(_tab == tab ? "on" : "")" @onclick="() => _tab = tab">@label</button>
+            }
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="st-status">@_error</div>
+        }
+        else if (_data is null)
+        {
+            <div class="st-status">Yükleniyor…</div>
+        }
+        else if (_tab == Tab.Board)
+        {
+            <section class="gr-cards" aria-label="Bu hafta">
+                @foreach (var c in _data.Cards)
+                {
+                    <div class="gr-card">
+                        <span class="gr-group">@c.Group</span>
+                        <span class="gr-title">@c.Title</span>
+                        <b class="gr-value">@c.Value @TrendMark(c.Trend)</b>
+                        <span class="gr-note">@c.Note</span>
+                    </div>
+                }
+            </section>
+
+            <h3 class="gr-h">Son 8 hafta</h3>
+            <section class="gr-charts">
+                @foreach (var s in _data.Series)
+                {
+                    <figure class="gr-chart">
+                        <figcaption><span>@s.Group · @s.Title</span><b>@LastValue(s)</b></figcaption>
+                        @Chart(s)
+                        <div class="gr-axis"><span>@_data.Weeks.FirstOrDefault()</span><span>@_data.Weeks.LastOrDefault()</span></div>
+                    </figure>
+                }
+            </section>
+
+            @if (_data.WeakTopics.Count > 0)
+            {
+                <h3 class="gr-h">Ders · zayıf konular</h3>
+                <section class="gr-list">
+                    @foreach (var t in _data.WeakTopics)
+                    {
+                        <div class="st-rule"><span>@t.Topic <em>@t.Session · @t.Hits ✓ · @t.Misses ✗</em></span></div>
+                    }
+                </section>
+            }
+        }
+        else if (_tab == Tab.Reports)
+        {
+            <section class="gr-list">
+                @if (_data.Reports.Count == 0)
+                {
+                    <div class="muted">Henüz kayıtlı gece raporu yok. Gece denetimleri (04:00) bundan sonra burada birikecek: yazılım cevapları, bileşenler ve ders cevapları.</div>
+                }
+                @foreach (var r in _data.Reports)
+                {
+                    <div class="gr-report">
+                        <span class="gr-chip @r.Area">@AreaLabel(r.Area)</span>
+                        <span class="gr-date">@r.AtLocal.ToString("dd.MM.yyyy HH:mm")</span>
+                        <span class="gr-text">@r.Summary</span>
+                    </div>
+                }
+                <div class="muted gr-help">Öğrenilen düzeltmeleri geri almak için Öğrenme sekmesi; bileşen tarifleri ve kurallar için İş → Zevk; ders düzeltmeleri için Ders → Notlar.</div>
+            </section>
+        }
+        else
+        {
+            <div class="gr-learning">
+                <LearningPanel Client="Client" OnClose="() => _tab = Tab.Board" />
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+
+
+
+    private enum Tab { Board, Reports, Learning }
+
+    private static readonly (Tab, string)[] Tabs = [(Tab.Board, "Pano"), (Tab.Reports, "Gece raporları"), (Tab.Learning, "Öğrenme")];
+
+    private GrowthDto? _data;
+    private Tab _tab = Tab.Board;
+    private bool _entered;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _entered = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _error = null;
+            _data = await Client.GetGrowthAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = "Gelişim verisi alınamadı: " + ex.Message;
+        }
+    }
+
+    private static MarkupString TrendMark(int trend) => new(trend switch
+    {
+        > 0 => "<span class=\"gr-up\" title=\"Geçen haftaya göre iyi yönde\">▲</span>",
+        < 0 => "<span class=\"gr-down\" title=\"Geçen haftaya göre kötü yönde\">▼</span>",
+        _ => "",
+    });
+
+    private static string LastValue(GrowthSeriesDto s) =>
+        s.Values.LastOrDefault(v => v is not null) is { } v ? (s.Unit == "%" ? "%" + Math.Round(v) : Math.Round(v, v < 10 ? 1 : 0) + (s.Unit.Length > 0 ? " " + s.Unit : "")) : "–";
+
+    /// <summary>Haftalık çizgi: veri olmayan haftada çizgi kesilir; noktalar her haftanın değeri.</summary>
+    private static RenderFragment Chart(GrowthSeriesDto s) => __builder =>
+    {
+        const double w = 280, h = 84, pad = 8;
+        var values = s.Values;
+        var present = values.Where(v => v is not null).Select(v => v!.Value).ToList();
+        if (present.Count == 0)
+        {
+            <div class="gr-empty">Henüz veri yok</div>
+            return;
+        }
+        var max = s.Unit == "%" ? 100 : Math.Max(1, present.Max() * 1.15);
+        double X(int i) => pad + i * (w - 2 * pad) / Math.Max(1, values.Count - 1);
+        double Y(double v) => h - pad - v / max * (h - 2 * pad);
+        var segments = new List<List<(double X, double Y)>>();
+        List<(double X, double Y)>? current = null;
+        for (var i = 0; i < values.Count; i++)
+        {
+            if (values[i] is not { } v)
+            {
+                current = null;
+                continue;
+            }
+            if (current is null)
+                segments.Add(current = []);
+            current.Add((X(i), Y(v)));
+        }
+        string P(double d) => d.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        <svg class="gr-svg" viewBox="0 0 @P(w) @P(h)" preserveAspectRatio="none" role="img" aria-label="@s.Title son 8 hafta">
+            <line x1="@P(pad)" y1="@P(h - pad)" x2="@P(w - pad)" y2="@P(h - pad)" class="gr-base" />
+            @foreach (var seg in segments)
+            {
+                <polyline points="@string.Join(" ", seg.Select(p => P(p.X) + "," + P(p.Y)))" class="gr-line" />
+                @foreach (var p in seg)
+                {
+                    <circle cx="@P(p.X)" cy="@P(p.Y)" r="2.6" class="gr-dot" />
+                }
+            }
+        </svg>
+    };
+
+    private static string AreaLabel(string area) => area switch
+    {
+        "yazilim" => "Yazılım",
+        "bilesen" => "Bileşen",
+        "ders" => "Ders",
+        _ => area,
+    };
+}

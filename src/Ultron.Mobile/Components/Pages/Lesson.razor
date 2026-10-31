@@ -1,0 +1,120 @@
+@page "/ders/{Id:long}"
+@inject UltronConnection Connection
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="screen">
+    <div class="chat-head">
+        <button class="icon-btn" @onclick='() => Nav.NavigateTo("/ders")'>←</button>
+        <div class="title">
+            <b>@(_lesson?.Session.Name ?? "Ders")</b>
+            <small>@(_busy ? "anlatıyor…" : _lesson?.Session.Course ?? "")</small>
+        </div>
+    </div>
+
+    <div class="scroll" id="messages">
+        <div class="messages">
+            @if (_error is not null)
+            {
+                <div class="glass empty">@_error</div>
+            }
+            @foreach (var line in _lines)
+            {
+                <div class="bubble @(line.FromUser ? "me" : "ai")">
+                    @if (line.FromUser)
+                    {
+                        @line.Text
+                    }
+                    else
+                    {
+                        @if (line.Status is not null && line.Text.Length == 0)
+                        {
+                            <span class="status">@line.Status</span>
+                        }
+                        <div class="@(line.Streaming ? "typing" : "")">@Markdown.Html(line.Text)</div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="glass composer">
+        <textarea rows="1" placeholder="Bu derste sor…" @bind="_text" @bind:event="oninput"></textarea>
+        <button class="icon-btn accent" @onclick="AskAsync" disabled="@(_busy || string.IsNullOrWhiteSpace(_text))">↑</button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public long Id { get; set; }
+
+    private LessonOpenDto? _lesson;
+    private readonly List<ChatLine> _lines = [];
+    private string _text = "";
+    private string? _error;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await Connection.ConnectAsync();
+            _lesson = await Connection.Hub.InvokeAsync<LessonOpenDto?>(ChatHubContract.OpenLesson, Id);
+            if (_lesson is null)
+            {
+                _error = "Bu ders bulunamadı.";
+                return;
+            }
+            _lines.AddRange(_lesson.Messages.Select(m => new ChatLine { FromUser = m.FromUser, Text = m.Content }));
+        }
+        catch (Exception)
+        {
+            _error = "Ders açılamadı: Ultron'a ulaşılamadı.";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) =>
+        await JS.InvokeVoidAsync("eval", "var m=document.getElementById('messages'); if(m) m.scrollTop=m.scrollHeight;");
+
+    private async Task AskAsync()
+    {
+        var text = _text.Trim();
+        _text = "";
+        if (text.Length == 0 || _busy)
+            return;
+        _busy = true;
+        _lines.Add(new ChatLine { FromUser = true, Text = text });
+        var reply = new ChatLine { FromUser = false, Streaming = true, Status = "Kaynaklara bakıyor…" };
+        _lines.Add(reply);
+        try
+        {
+            await foreach (var e in Connection.Hub.StreamAsync<LessonEventDto>(ChatHubContract.AskLesson, Id, text, (byte[]?)null))
+            {
+                switch (e.Type)
+                {
+                    case "chunk":
+                        reply.Text += e.Text;
+                        reply.Status = null;
+                        break;
+                    case "completed":
+                        reply.Text = e.Message?.Content ?? reply.Text;
+                        break;
+                    case "failed":
+                        reply.Text = e.Text ?? "Cevap üretilemedi.";
+                        break;
+                }
+                StateHasChanged();
+            }
+        }
+        catch (Exception)
+        {
+            reply.Text = "Ultron'a ulaşılamadı.";
+        }
+        finally
+        {
+            reply.Streaming = false;
+            reply.Status = null;
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+}

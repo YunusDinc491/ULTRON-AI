@@ -1,0 +1,242 @@
+@* /ogrenme (Faz 15 d): gece denetiminin sonuçları. Claude Code her gece 04:00'te Ultron'un yazılım cevaplarını okur, eksik ya da
+   yanlış bulduğunun doğrusunu yazar. tasarım kararı (2026-10-28): resmi dokümana dayanan düzeltme kendiliğinden öğrenilir
+   ("Öğrendiklerim", istenirse "Geri al"); kaynak gösterilemeyen az sayıdaki öneri sade bir açıklamayla onaya gelir. *@
+
+<aside class="panel learning-panel">
+    <div class="panel-head">
+        <span class="panel-title">ÖĞRENME@(_data is null ? "" : _data.Items.Count > 0 ? $" · {_data.Items.Count} ONAY BEKLİYOR" : "")</span>
+        <button class="x" title="Kapat (Esc)" @onclick="OnClose">✕</button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="muted err-line">@_error</div>
+    }
+
+    @if (_data is null)
+    {
+        <div class="muted">Yükleniyor…</div>
+    }
+    else
+    {
+        <div class="lp-status muted">
+            @(_data.Auditing ? "Denetim şu an çalışıyor…" : _data.LastAuditLocal is { } last ? $"Son denetim: {last:dd.MM HH:mm}" : "Henüz denetim yapılmadı")
+            · öğrenilen düzeltme: @_data.ApprovedCount
+        </div>
+        <div class="mp-toolbar">
+            <button class="ghost" disabled="@_data.Auditing" title="Gece saatini beklemeden bugünkü yazılım cevaplarını denetlet" @onclick="RunNowAsync">Şimdi denetle</button>
+        </div>
+        @if (_notice is not null)
+        {
+            <div class="muted lp-notice">@_notice</div>
+        }
+
+        @if (_data.Items.Count > 0)
+        {
+            <div class="section">ONAYINI BEKLEYENLER · kaynak gösterilemedi</div>
+            <div class="muted lp-help">Emin değilsen "Onayla" de: Claude Code'un önerisi çoğu zaman Ultron'dan doğrudur. Yanlış çıkarsa "Öğrendiklerim"den geri alabilirsin.</div>
+            @foreach (var item in _data.Items)
+            {
+                <div class="lp-item">
+                    <div class="lp-head">
+                        <span class="lp-verdict @(item.Verdict == "Yanlis" ? "bad" : "")">@(item.Verdict == "Yanlis" ? "YANLIŞ" : "EKSİK")</span>
+                        <span class="muted">@item.AskedAtLocal.ToString("dd.MM HH:mm")</span>
+                    </div>
+                    <div class="lp-q">@item.Question</div>
+                    @if (item.PlainSummary is { Length: > 0 })
+                    {
+                        <div class="lp-plain">@item.PlainSummary</div>
+                    }
+                    <details class="lp-old">
+                        <summary class="muted">Teknik ayrıntı</summary>
+                        @if (item.Reason is { Length: > 0 })
+                        {
+                            <div class="lp-reason muted">@item.Reason</div>
+                        }
+                        <div class="lp-fix">@item.Correction</div>
+                        <div class="section">ULTRON'UN CEVABI</div>
+                        <div class="lp-answer">@item.Answer</div>
+                    </details>
+                    <div class="s-actions end">
+                        <button class="ghost" @onclick="() => ResolveAsync(item.Id, false)">Reddet</button>
+                        <button class="primary" @onclick="() => ResolveAsync(item.Id, true)">Onayla</button>
+                    </div>
+                </div>
+            }
+        }
+
+        <div class="section">ÖĞRENDİKLERİM @(_data.Learned is { Count: > 0 } l ? $"· {l.Count}" : "")</div>
+        @if (_data.Learned is not { Count: > 0 })
+        {
+            <div class="muted lp-empty">Henüz yok. Ultron'a yazılım soruları sordukça her gece 04:00'te Claude Code cevapları denetler; resmi dokümana dayanan düzeltmeleri Ultron kendiliğinden öğrenir ve burada listelenir.</div>
+        }
+        else
+        {
+            @foreach (var item in _data.Learned)
+            {
+                <div class="lp-learned">
+                    <div class="lp-head">
+                        <span class="lp-badge">@(item.AutoApproved ? "KAYNAKLI · OTOMATİK" : "SENİN ONAYIN")</span>
+                        <span class="muted">@item.DecidedAtLocal?.ToString("dd.MM HH:mm")</span>
+                    </div>
+                    <div class="lp-q">@item.Question</div>
+                    @if (item.PlainSummary is { Length: > 0 })
+                    {
+                        <div class="lp-plain">@item.PlainSummary</div>
+                    }
+                    <details class="lp-old">
+                        <summary class="muted">Ultron'a öğretilen bilgi</summary>
+                        <div class="lp-fix">@item.Correction</div>
+                        @if (item.Reference is { Length: > 0 })
+                        {
+                            <div class="muted lp-ref">Kaynak: @item.Reference</div>
+                        }
+                    </details>
+                    <div class="s-actions end">
+                        <button class="ghost" title="Bu düzeltme artık kullanılmaz, benzeri de önerilmez" @onclick="() => UndoAsync(item.Id)">Geri al</button>
+                    </div>
+                </div>
+            }
+        }
+
+        @* Bildiğim siteler (Faz 20): her gece taranır, sorular internete çıkmadan sitenin kopyasından cevaplanır. *@
+        <div class="section">BİLDİĞİM SİTELER @(_sites is { Count: > 0 } ss ? $"· {ss.Count}" : "")</div>
+        @foreach (var s in _sites ?? [])
+        {
+            <div class="lp-learned">
+                <div class="lp-head">
+                    <span class="lp-badge">@s.PageCount SAYFA</span>
+                    <span class="muted">son tarama: @(s.LastCrawledLocal?.ToString("dd.MM HH:mm") ?? "taranıyor…")</span>
+                </div>
+                <div class="lp-q">@s.Name</div>
+                <div class="muted">@s.Url@(string.IsNullOrEmpty(s.Purpose) ? "" : " · " + s.Purpose)</div>
+                @if (!string.IsNullOrEmpty(s.LastResult))
+                {
+                    <div class="muted">@s.LastResult</div>
+                }
+                <div class="s-actions end">
+                    <button class="ghost" title="Siteyi şimdi yeniden tara" @onclick="() => CrawlSiteAsync(s.Id)">Şimdi tara</button>
+                    <button class="ghost" title="Takibi bırak ve kopyasını sil" @onclick="() => RemoveSiteAsync(s.Id)">Kaldır</button>
+                </div>
+            </div>
+        }
+        <div class="lp-site-add">
+            <input placeholder="Site adresi (ör. https://www.okul.edu.tr)" @bind="_siteUrl" />
+            <input placeholder="Ne için? (ör. akademik takvim, duyurular)" @bind="_sitePurpose" />
+            <button class="ghost" disabled="@string.IsNullOrWhiteSpace(_siteUrl)" @onclick="AddSiteAsync">Takibe al</button>
+        </div>
+
+        @* ULTRON PRO (Faz 19) ve Medium (Faz 20): öğrenilen cevaplar; benzer soru gelince internete/Claude'a gitmeden kullanılır. *@
+        <div class="section">PRO VE WEB'DEN ÖĞRENDİKLERİM @(_pro is { Count: > 0 } p ? $"· {p.Count}" : "")</div>
+        @if (_pro is not { Count: > 0 })
+        {
+            <div class="muted lp-empty">Henüz yok. Ultron Pro'da bağlı hesabın (Claude, Codex ya da Gemini), Ultron'da Ultron'un kendi bulduğu iyi cevaplar burada birikir; aynı soru tekrar gelince internete çıkmadan kullanılır.</div>
+        }
+        else
+        {
+            @foreach (var a in _pro)
+            {
+                <div class="lp-learned">
+                    <div class="lp-head">
+                        <span class="lp-badge">@(a.Origin == "medium" ? "WEB" : "PRO")</span>
+                        <span class="lp-badge">@(a.Lifetime == "kalici" ? "KALICI" : "SÜRELİ · " + a.ExpiresAtLocal?.ToString("dd.MM"))</span>
+                        <span class="muted">@a.CreatedAtLocal.ToString("dd.MM HH:mm") · @a.Uses kez kullanıldı</span>
+                    </div>
+                    <div class="lp-q">@a.Question</div>
+                    <details class="lp-old">
+                        <summary class="muted">@(a.Origin == "medium" ? "Ultron'un bulduğu cevap" : "Claude'un cevabı")</summary>
+                        <div class="lp-fix">@a.Answer</div>
+                    </details>
+                    <div class="s-actions end">
+                        <button class="ghost" title="Bu cevap artık kullanılmaz; soru tekrar gelirse yeniden araştırılır" @onclick="() => RemoveProAsync(a.Id)">Geri al</button>
+                    </div>
+                </div>
+            }
+        }
+    }
+</aside>
+
+@code {
+    [Parameter, EditorRequired] public UltronClient Client { get; set; } = null!;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private LearningListDto? _data;
+    private IReadOnlyList<ProAnswerDto>? _pro;
+
+    private IReadOnlyList<KnownSiteDto>? _sites;
+    private string? _siteUrl;
+    private string? _sitePurpose;
+
+    private async Task RemoveProAsync(long id)
+    {
+        await Run(() => Client.RemoveProAnswerAsync(id));
+        await ReloadAsync();
+    }
+
+    private async Task AddSiteAsync()
+    {
+        await Run(async () => _notice = await Client.AddSiteAsync(_siteUrl ?? "", null, _sitePurpose));
+        _siteUrl = _sitePurpose = null;
+        await ReloadAsync();
+    }
+
+    private async Task RemoveSiteAsync(long id)
+    {
+        await Run(() => Client.RemoveSiteAsync(id));
+        await ReloadAsync();
+    }
+
+    private async Task CrawlSiteAsync(long id)
+    {
+        await Run(() => Client.CrawlSiteAsync(id));
+        _notice = "Tarama başladı; birkaç dakika sürebilir. Paneli yeniden açınca sonucu görürsün.";
+        await ReloadAsync();
+    }
+    private string? _error;
+    private string? _notice;
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    public async Task ReloadAsync()
+    {
+        await Run(async () => _data = await Client.ListLearningAsync());
+        await Run(async () => _pro = await Client.ListProAnswersAsync());
+        await Run(async () => _sites = await Client.ListSitesAsync());
+        StateHasChanged();
+    }
+
+    private async Task ResolveAsync(long id, bool accept)
+    {
+        await Run(() => Client.ResolveLearningAsync(id, accept));
+        _notice = accept ? "Onaylandı: benzer sorularda Ultron bu bilgiyi kullanacak." : "Reddedildi: benzer soru için bir daha önerilmeyecek.";
+        await ReloadAsync();
+    }
+
+    private async Task UndoAsync(long id)
+    {
+        await Run(() => Client.UndoLearningAsync(id));
+        _notice = "Geri alındı: Ultron bu düzeltmeyi artık kullanmayacak.";
+        await ReloadAsync();
+    }
+
+    private async Task RunNowAsync()
+    {
+        await Run(async () => _notice = await Client.RunAuditNowAsync());
+        await ReloadAsync();
+    }
+
+    /// <summary>Sunucu hatası panelde tek satır olarak görünür; panel çökmez.</summary>
+    private async Task Run(Func<Task> action)
+    {
+        try
+        {
+            _error = null;
+            await action();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message.Replace("An unexpected error occurred invoking", "Hata:");
+        }
+    }
+}

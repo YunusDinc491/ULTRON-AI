@@ -1,0 +1,51 @@
+<!-- Simgeye sağ tıklayıp konuşunca arayüz açılmadan çıkan cevap kartı. Tıklayınca arayüz açılır; ✕ kapatır; bir süre sonra kendiliğinden kaybolur. -->
+<Window x:Class="Ultron.Desktop.Widget.AnswerCard"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Ultron cevap" Width="380" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False" ShowActivated="False">
+    <Border Margin="10" CornerRadius="16" BorderThickness="1.5" Padding="16,12,16,14" Cursor="Hand" MouseLeftButtonUp="OnCardClick">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#F2131820" Offset="0" />
+                <GradientStop Color="#F20A0D12" Offset="1" />
+            </LinearGradientBrush>
+        </Border.Background>
+        <Border.BorderBrush>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#FF8A1A" Offset="0" />
+                <GradientStop Color="#55FF5A00" Offset="1" />
+            </LinearGradientBrush>
+        </Border.BorderBrush>
+        <Border.Effect>
+            <DropShadowEffect Color="#FF6A00" BlurRadius="24" ShadowDepth="0" Opacity="0.45" />
+        </Border.Effect>
+        <StackPanel>
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="✕" Click="OnCloseClick" Width="24" Height="24" Cursor="Hand"
+                        Background="Transparent" BorderThickness="0" Foreground="#8A93A3" FontSize="12" ToolTip="Kapat" />
+                <TextBlock Text="ULTRON" FontFamily="pack://application:,,,/Widget/#Michroma" FontSize="14" VerticalAlignment="Center">
+                    <TextBlock.Foreground>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#FFFFFF" Offset="0" />
+                            <GradientStop Color="#DFE5EC" Offset="0.38" />
+                            <GradientStop Color="#8D97A5" Offset="0.52" />
+                            <GradientStop Color="#C9D1DB" Offset="0.66" />
+                            <GradientStop Color="#6E7785" Offset="1" />
+                        </LinearGradientBrush>
+                    </TextBlock.Foreground>
+                    <TextBlock.Effect>
+                        <DropShadowEffect Color="#FF5A00" BlurRadius="10" ShadowDepth="0" Opacity="0.8" />
+                    </TextBlock.Effect>
+                </TextBlock>
+                <TextBlock x:Name="Status" Margin="10,1,0,0" VerticalAlignment="Center" FontFamily="Consolas" FontSize="10.5" Foreground="#8A93A3" />
+            </DockPanel>
+            <TextBlock x:Name="Question" Margin="0,8,0,0" TextWrapping="Wrap" FontSize="12" Foreground="#8A93A3" FontStyle="Italic" Visibility="Collapsed" />
+            <ScrollViewer MaxHeight="320" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="Answer" TextWrapping="Wrap" FontFamily="Segoe UI" FontSize="14" LineHeight="20" Foreground="#ECEFF4" />
+            </ScrollViewer>
+            <TextBlock x:Name="Hint" Margin="0,8,0,0" FontSize="10.5" Foreground="#5C6573" Text="Tıkla: arayüzü aç · sağ tık simgeye: tekrar konuş" />
+        </StackPanel>
+    </Border>
+</Window>

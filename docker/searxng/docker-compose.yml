@@ -1,0 +1,18 @@
+# Ultron'un yerel arama motoru. Sadece bu bilgisayardan erişilir (127.0.0.1).
+# Başlat:  docker compose up -d     (bu klasörde)
+# Durdur:  docker compose down
+name: ultron-searxng
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: ultron-searxng
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8888:8080"
+    environment:
+      - SEARXNG_BASE_URL=http://127.0.0.1:8888/
+      # Gizli anahtar .env dosyasından gelir (git'e girmez). Yoksa: ilk kurulumda üretilir, bkz. README.md
+      - SEARXNG_SECRET=${SEARXNG_SECRET:?SEARXNG_SECRET .env dosyasinda tanimli olmali}
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml:ro

@@ -1,0 +1,203 @@
+﻿@page "/"
+@implements IDisposable
+@inject UltronConnection Connection
+@inject ChatSession Chat
+@inject NavigationManager Nav
+
+<div class="screen scroll">
+    <div class="topbar">
+        <span class="brand"><b>Ultron</b></span>
+        <span class="pill"><span class="dot @DotClass"></span>@StateText</span>
+        <button class="icon-btn" @onclick="() => _menu = !_menu">⋯</button>
+    </div>
+    @if (_menu)
+    {
+        <div class="glass menu">
+            <button @onclick="NewChatAsync">Yeni sohbet</button>
+            <button @onclick="UnpairAsync">Eşleşmeyi kaldır</button>
+        </div>
+    }
+
+    <div class="greeting">
+        <h1>@Greeting@(string.IsNullOrWhiteSpace(_address) ? "" : ",")<br />@_address</h1>
+        <p>Bugün ne yapalım?</p>
+    </div>
+
+    <button class="glass start-card" @onclick='() => Nav.NavigateTo("/sohbet")'>
+        <div>
+            <h2>Sohbet başlat</h2>
+            <span>Yaz ya da konuş; cevap bilgisayardaki Ultron'dan.</span>
+        </div>
+        <div class="arrow">→</div>
+    </button>
+
+    <div class="cards">
+        <button class="glass card" @onclick='() => Nav.NavigateTo("/dinle")'>
+            <div class="ico">🎙</div>
+            <b>Sesli soru</b>
+            <small>Bas, konuş</small>
+        </button>
+        <button class="glass card" @onclick='() => Nav.NavigateTo("/ders")'>
+            <div class="ico">📘</div>
+            <b>Ders</b>
+            <small>Ders oturumları</small>
+        </button>
+        <button class="glass card" @onclick="NextTierAsync">
+            <div class="ico">✦</div>
+            <b>@TierName(_tier)</b>
+            <small>Paket · değiştir</small>
+        </button>
+    </div>
+
+    @if (_update is not null)
+    {
+        <button class="glass history-item" disabled="@(_updateProgress is not null)" @onclick="UpdateAsync">
+            <span class="ico">⬇</span>
+            <div><b>@(_updateProgress is { } p ? $"İndiriliyor %{p * 100:0}" : $"Güncelleme var · {_update.Ad}")</b><small>@(_updateError ?? $"Dokun, kur ({_update.Boyut / 1048576.0:0.#} MB) · eşleşme ve yedek korunur")</small></div>
+        </button>
+    }
+
+    <div class="section-title">
+        <h3>Son konuşma</h3>
+        <a href="/sohbet">Tümü</a>
+    </div>
+    <div class="history">
+        @if (_error is not null)
+        {
+            <div class="glass empty">@_error</div>
+        }
+        else if (RecentQuestions.Count == 0)
+        {
+            <div class="glass empty">Henüz soru yok. İlk soruyu sor!</div>
+        }
+        @foreach (var q in RecentQuestions)
+        {
+            <button class="glass history-item" @onclick='() => Nav.NavigateTo("/sohbet")'>
+                <span class="ico">💬</span>
+                <div><b>@q</b><small>Ultron sohbeti</small></div>
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    internal static readonly string[] Tiers = ["ultron", "pro"];
+
+    internal const string ProLocked = "Ultron Pro için bilgisayarda Claude, Codex ya da Gemini hesabı bağlı olmalı.";
+    private string _tier = "ultron";
+    private string? _address;
+    private string? _error;
+    private bool _menu;
+    private UltronConnection.UpdateInfo? _update;
+    private double? _updateProgress;
+    private string? _updateError;
+
+    private static string Greeting => DateTime.Now.Hour switch
+    {
+        < 6 => "İyi geceler",
+        < 12 => "Günaydın",
+        < 18 => "İyi günler",
+        _ => "İyi akşamlar",
+    };
+
+    private List<string> RecentQuestions => Chat.Lines.Where(l => l.FromUser).Select(l => l.Text).Reverse().Take(4).ToList();
+
+    private string DotClass => Connection.State switch
+    {
+        Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected => "ok",
+        Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Disconnected => "",
+        _ => "warn",
+    };
+
+    private string StateText => Connection.State switch
+    {
+        Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected => "Bağlı",
+        Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Disconnected => "Bağlı değil",
+        _ => "Bağlanıyor",
+    };
+
+    internal static string TierName(string tier) => tier == "pro" ? "Ultron Pro" : "Ultron";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Connection.Paired && !await Connection.LoadAsync())
+        {
+            Nav.NavigateTo("/eslestir", replace: true);
+            return;
+        }
+        Connection.StateChanged += Refresh;
+        Chat.Changed += Refresh;
+        try
+        {
+            await Chat.LoadAsync();
+            _tier = await Chat.TierAsync();
+            _address = await Chat.AddressAsync();
+        }
+        catch (Exception)
+        {
+            _error = "Ultron'a ulaşılamadı. Bilgisayar açık ve Tailscale bağlı mı?";
+        }
+        try
+        {
+            _update = await Connection.CheckUpdateAsync();
+        }
+        catch (Exception)
+        {
+            // güncelleme kontrolü sessizce atlanır; bir sonraki açılışta yeniden bakılır
+        }
+    }
+
+    private async Task UpdateAsync()
+    {
+        _updateError = null;
+        try
+        {
+            _updateProgress = 0;
+            var path = await Connection.DownloadUpdateAsync(p => { _updateProgress = p; Refresh(); });
+            // Android'in kurulum ekranı açılır; ilk seferde "Bu kaynaktan izin ver" sorar.
+            await Launcher.Default.OpenAsync(new OpenFileRequest("Ultron güncellemesi", new ReadOnlyFile(path, "application/vnd.android.package-archive")));
+        }
+        catch (Exception)
+        {
+            _updateError = "İndirilemedi: Ultron'a ulaşılamadı, sonra tekrar dene.";
+        }
+        _updateProgress = null;
+    }
+
+    private async Task NextTierAsync()
+    {
+        var next = Tiers[(Array.IndexOf(Tiers, _tier) + 1) % Tiers.Length];
+        try
+        {
+            await Chat.SetTierAsync(next);
+            _tier = await Chat.TierAsync(); // Pro, bağlı hesap yoksa seçilmez
+            if (next == "pro" && _tier != "pro")
+                _error = ProLocked;
+        }
+        catch (Exception)
+        {
+            _error = "Paket değiştirilemedi: Ultron'a ulaşılamadı.";
+        }
+    }
+
+    private async Task NewChatAsync()
+    {
+        _menu = false;
+        await Chat.NewConversationAsync();
+        Nav.NavigateTo("/sohbet");
+    }
+
+    private async Task UnpairAsync()
+    {
+        await Connection.UnpairAsync();
+        Nav.NavigateTo("/eslestir", replace: true);
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Connection.StateChanged -= Refresh;
+        Chat.Changed -= Refresh;
+    }
+}

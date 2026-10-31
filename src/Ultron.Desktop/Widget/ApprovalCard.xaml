@@ -1,0 +1,36 @@
+<!-- Onay kartı (Faz 12): Ultron onaylı bir işlem yapmak istiyor. Arayüz açık olsun olmasın ekranın altında, en üstte açılır.
+     Klavyeye odak almaz (yazarken yanlışlıkla onaylanmasın): karar sadece fareyle (ya da Telegram düğmesiyle). -->
+<Window x:Class="Ultron.Desktop.Widget.ApprovalCard"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Ultron onay" Width="440" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False" ShowActivated="False">
+    <Border x:Name="Frame" Margin="12" CornerRadius="16" BorderThickness="2" Padding="18,14,18,16" BorderBrush="#FF8A1A">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#F5141922" Offset="0" />
+                <GradientStop Color="#F50A0D12" Offset="1" />
+            </LinearGradientBrush>
+        </Border.Background>
+        <Border.Effect>
+            <DropShadowEffect x:Name="Glow" Color="#FF6A00" BlurRadius="30" ShadowDepth="0" Opacity="0.6" />
+        </Border.Effect>
+        <StackPanel>
+            <DockPanel>
+                <TextBlock x:Name="Countdown" DockPanel.Dock="Right" FontFamily="Consolas" FontSize="11" Foreground="#8A93A3" VerticalAlignment="Center" />
+                <TextBlock Text="🔐" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock x:Name="Title" Text="ONAY GEREKİYOR" FontFamily="pack://application:,,,/Widget/#Michroma" FontSize="12.5" Foreground="#FFB25A" VerticalAlignment="Center" />
+            </DockPanel>
+            <TextBlock x:Name="Summary" Margin="0,12,0,0" TextWrapping="Wrap" FontFamily="Segoe UI" FontSize="14.5" LineHeight="21" Foreground="#ECEFF4" />
+            <TextBlock x:Name="Note" Margin="0,8,0,0" TextWrapping="Wrap" FontSize="11.5" Foreground="#8A93A3"
+                       Text="Ultron bunu yapmak için izin istiyor. Onaylamazsan ya da 90 saniye içinde cevap vermezsen yapılmaz." />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                <Button Content="Reddet" Click="OnReject" Width="96" Height="32" Margin="0,0,8,0" Cursor="Hand"
+                        Background="Transparent" Foreground="#E6E6E6" BorderBrush="#5C6573" BorderThickness="1" FontSize="13" />
+                <Button Content="Onayla" Click="OnApprove" Width="110" Height="32" Cursor="Hand"
+                        Background="#22D3EE" Foreground="#022" BorderThickness="0" FontWeight="SemiBold" FontSize="13" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

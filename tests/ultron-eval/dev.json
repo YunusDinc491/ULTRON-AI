@@ -1,0 +1,69 @@
+{
+  "aciklama": "GELİŞTİRME seti: prompt/ayar denemelerinde bakılabilir. Kapalı set holdout.json'a dokunulmaz. Kişisel veri yok; isimler kurgu.",
+  "vakalar": [
+    { "id": "anl-01", "kategori": "turkce_anlama", "tur": "sohbet", "girdi": "Ali'nin üç elması vardı, ikisini Ayşe'ye verdi. Ali'nin kaç elması kaldı? Sadece sayıyı söyle.", "kontrol": { "sayi": 1, "en_fazla_kelime": 6 } },
+    { "id": "anl-02", "kategori": "turkce_anlama", "tur": "sohbet", "girdi": "\"Ağzı kulaklarında\" deyimi ne anlama gelir? Tek cümleyle açıkla.", "kontrol": { "icermeli_herhangi": ["mutlu", "sevin", "neşe", "memnun", "keyif"], "en_fazla_cumle": 2 } },
+    { "id": "anl-03", "kategori": "turkce_anlama", "tur": "sohbet", "girdi": "Şu cümlede kim yorgun? \"Mehmet, kardeşi Can'ı okuldan aldıktan sonra çok yorgun olduğu için hemen uyudu.\" Sadece ismi söyle.", "kontrol": { "icermeli_herhangi": ["Mehmet"], "icermemeli": ["Can"] } },
+    { "id": "anl-04", "kategori": "turkce_anlama", "tur": "sohbet", "girdi": "\"Bugün yağmur yağmadı ama yine de şemsiye aldım\" cümlesinde yağmur yağdı mı? Evet ya da hayır de.", "kontrol": { "icermeli_herhangi": ["hayır", "Hayır", "yağmadı"] } },
+    { "id": "anl-05", "kategori": "turkce_anlama", "tur": "sohbet", "girdi": "Hangisi meyve değildir: elma, armut, havuç, kiraz? Sadece kelimeyi yaz.", "kontrol": { "icermeli_herhangi": ["havuç", "Havuç"], "en_fazla_kelime": 4 } },
+    { "id": "anl-06", "kategori": "turkce_anlama", "tur": "sohbet", "girdi": "Selam, nasılsın?", "kontrol": { "en_fazla_cumle": 4, "markdownsuz": true, "dil": "tr" } },
+
+    { "id": "tal-01", "kategori": "talimat_takibi", "tur": "sohbet", "girdi": "Termodinamiğin birinci yasasını madde madde, tam 3 madde halinde listele.", "kontrol": { "liste_maddesi": 3 } },
+    { "id": "tal-07", "kategori": "talimat_takibi", "tur": "sohbet", "girdi": "Kompresör türlerini tam 5 madde halinde listele.", "kontrol": { "liste_maddesi": 5 } },
+    { "id": "tal-02", "kategori": "talimat_takibi", "tur": "sohbet", "girdi": "Fotosentezi tek cümleyle anlat.", "kontrol": { "en_fazla_cumle": 1, "icermeli_herhangi": ["ışık", "güneş", "Güneş"] } },
+    { "id": "tal-03", "kategori": "talimat_takibi", "tur": "sohbet", "girdi": "Answer in English only: what is the capital of Turkey?", "kontrol": { "icermeli_herhangi": ["Ankara"], "dil": "en" } },
+    { "id": "tal-04", "kategori": "talimat_takibi", "tur": "sohbet", "girdi": "Bana sadece 'tamam' kelimesini yaz, başka hiçbir şey yazma.", "kontrol": { "icermeli_herhangi": ["tamam", "Tamam"], "en_fazla_kelime": 2 } },
+    { "id": "tal-05", "kategori": "talimat_takibi", "tur": "sohbet", "girdi": "Entropi nedir?", "kontrol": { "en_fazla_cumle": 4, "markdownsuz": true } },
+    { "id": "tal-06", "kategori": "talimat_takibi", "tur": "sohbet", "girdi": "Isı transferinin üç yolunu detaylı anlat.", "kontrol": { "icermeli_hepsi_kok": ["iletim", "taşınım|konveksiyon", "ışınım|radyasyon"], "en_az_kelime": 60 } },
+
+    { "id": "man-01", "kategori": "mantik", "tur": "sohbet", "girdi": "Bir trenin hızı saatte 80 km. 3 saatte kaç km yol alır? Sadece sayıyı yaz.", "kontrol": { "sayi": 240 } },
+    { "id": "man-02", "kategori": "mantik", "tur": "sohbet", "girdi": "Bütün kediler hayvandır. Tekir bir kedidir. Tekir hayvan mıdır? Evet ya da hayır.", "kontrol": { "icermeli_herhangi": ["evet", "Evet"] } },
+    { "id": "man-03", "kategori": "mantik", "tur": "sohbet", "girdi": "Bugün çarşamba ise 3 gün sonra hangi gün olur? Sadece günü yaz.", "kontrol": { "icermeli_herhangi": ["cumartesi", "Cumartesi"] } },
+    { "id": "man-04", "kategori": "mantik", "tur": "sohbet", "girdi": "2, 4, 8, 16 dizisinde sıradaki sayı nedir? Sadece sayıyı yaz.", "kontrol": { "sayi": 32 } },
+    { "id": "man-05", "kategori": "mantik", "tur": "sohbet", "girdi": "Ahmet Burak'tan uzun, Burak Cem'den uzun. En kısa kim? Sadece ismi yaz.", "kontrol": { "icermeli_herhangi": ["Cem"], "icermemeli": ["Ahmet"] } },
+    { "id": "man-06", "kategori": "mantik", "tur": "sohbet", "girdi": "Bir malın fiyatı 200 TL. Yüzde 25 indirim yapılırsa yeni fiyat kaç TL olur? Sadece sayıyı yaz.", "kontrol": { "sayi": 150 } },
+
+    { "id": "ozt-01", "kategori": "ozetleme", "tur": "sohbet", "girdi": "Şu metni en fazla 20 kelimeyle özetle: \"Ankara Türkiye'nin başkentidir ve 1923'te başkent ilan edilmiştir. Şehir, İç Anadolu Bölgesi'nde yer alır ve nüfus bakımından İstanbul'dan sonra ikinci büyük şehirdir. Ankara'da birçok üniversite, bakanlık ve büyükelçilik bulunur.\"", "kontrol": { "en_fazla_kelime": 24, "icermeli_hepsi_kok": ["Ankara", "başkent"] } },
+    { "id": "ozt-02", "kategori": "ozetleme", "tur": "sohbet", "girdi": "Şu metnin ana fikrini tek cümleyle yaz: \"Düzenli uyku, öğrenilen bilgilerin kalıcı hafızaya geçmesine yardım eder. Uykusuz geçen gecelerden sonra dikkat ve hatırlama belirgin şekilde azalır. Bu yüzden sınav öncesi gece uyumak, sabaha kadar çalışmaktan daha verimlidir.\"", "kontrol": { "en_fazla_cumle": 1, "icermeli_herhangi": ["uyku", "uyu"] } },
+    { "id": "ozt-03", "kategori": "ozetleme", "tur": "sohbet", "girdi": "Şu toplantı notundan sadece yapılacak işleri madde madde çıkar: \"Toplantıda proje takvimi konuşuldu. Ayşe raporu cumaya kadar bitirecek. Kerem sunum slaytlarını hazırlayacak. Bütçe konusu bir sonraki toplantıya kaldı.\"", "kontrol": { "liste_maddesi_en_az": 2, "icermeli_hepsi_kok": ["rapor", "slayt"] } },
+
+    { "id": "scv-01", "kategori": "soru_cevap", "tur": "sohbet", "girdi": "Suyun deniz seviyesinde kaynama noktası kaç santigrat derecedir? Sadece sayıyı yaz.", "kontrol": { "sayi": 100 } },
+    { "id": "scv-02", "kategori": "soru_cevap", "tur": "sohbet", "girdi": "Newton'un ikinci yasasının formülü nedir? Kısaca yaz.", "kontrol": { "icermeli_herhangi": ["F = m", "F=m", "F = ma", "kütle", "ivme"] } },
+    { "id": "scv-03", "kategori": "soru_cevap", "tur": "sohbet", "girdi": "Isı iletim katsayısının SI birimi nedir?", "kontrol": { "icermeli_herhangi": ["W/(m·K)", "W/m·K", "W/mK", "W/(m K)", "W/m K", "watt", "Watt"] } },
+    { "id": "scv-04", "kategori": "soru_cevap", "tur": "sohbet", "girdi": "Türkiye Cumhuriyeti hangi yıl kuruldu? Sadece yılı yaz.", "kontrol": { "sayi": 1923 } },
+    { "id": "scv-05", "kategori": "soru_cevap", "tur": "sohbet", "girdi": "Mutlak sıfır kaç kelvindir? Sadece sayıyı yaz.", "kontrol": { "sayi": 0 } },
+
+    { "id": "tut-01", "kategori": "tutarlilik", "tur": "sohbet", "tekrar": 3, "girdi": "Bir dairenin yarıçapı 2 metre. Çevresi yaklaşık kaç metredir? Sadece sayıyı yaz (iki ondalık).", "kontrol": { "sayi_yaklasik": 12.57, "tolerans": 0.1 } },
+    { "id": "tut-02", "kategori": "tutarlilik", "tur": "sohbet", "tekrar": 3, "girdi": "Bir haftada kaç saat vardır? Sadece sayıyı yaz.", "kontrol": { "sayi": 168 } },
+
+    { "id": "arc-01", "kategori": "arac_karari", "tur": "arac", "girdi": "Perşembe 13:00-14:50 Akışkanlar Mekaniği dersim var, sınıf B-12", "beklenen_arac": "ders_ekle", "parametreler": { "gun": "persembe", "baslangic": "13:00", "bitis": "14:50" } },
+    { "id": "arc-02", "kategori": "arac_karari", "tur": "arac", "girdi": "Brifing saat 06:15'te gelsin", "beklenen_arac": "ayar_degistir", "parametreler": { "ayar": "brifing_saati", "deger": "06:15" } },
+    { "id": "arc-03", "kategori": "arac_karari", "tur": "arac", "girdi": "Yarın neler var?", "beklenen_arac": "gunluk_ozet", "parametreler": { "gun": "yarin" } },
+    { "id": "arc-04", "kategori": "arac_karari", "tur": "arac", "girdi": "Eskişehir'de hava nasıl?", "beklenen_arac": "hava_durumu", "parametreler": { "sehir": "Eskişehir" } },
+    { "id": "arc-05", "kategori": "arac_karari", "tur": "arac", "girdi": "Notlarımı hep kurşun kalemle alırım", "beklenen_arac": "yok" },
+    { "id": "arc-06", "kategori": "arac_karari", "tur": "arac", "girdi": "3 numaralı hatırlatıcıyı iptal et", "beklenen_arac": "hatirlatici_iptal", "parametreler": { "numara": "3" } },
+    { "id": "arc-07", "kategori": "arac_karari", "tur": "arac", "girdi": "Hesap makinesini açar mısın", "beklenen_arac": "uygulama_ac", "parametreler": { "uygulama": "hesap makinesi" } },
+    { "id": "arc-08", "kategori": "arac_karari", "tur": "arac", "girdi": "Masaüstümde hangi dosyalar var?", "beklenen_arac": "dosya_listele" },
+    { "id": "arc-09", "kategori": "arac_karari", "tur": "arac", "girdi": "Spotify'ı izinli uygulamalara ekle", "beklenen_arac": "yetki_degistir", "parametreler": { "islem": "uygulama_ekle" } },
+    { "id": "arc-10", "kategori": "arac_karari", "tur": "arac", "girdi": "alisveris.txt diye bir dosya oluştur, içine süt ve ekmek yaz", "beklenen_arac": "dosya_yaz", "parametreler": { "yol": "alisveris.txt" } },
+    { "id": "arc-11", "kategori": "arac_karari", "tur": "arac", "girdi": "ipconfig komutunu çalıştır", "beklenen_arac": "komut_calistir", "parametreler": { "komut": "ipconfig" } },
+    { "id": "arc-12", "kategori": "arac_karari", "tur": "arac", "girdi": "Bu akşam ödev dosyasını teslim etmem lazım, çok stresliyim", "beklenen_arac": "yok" },
+    { "id": "arc-13", "kategori": "arac_karari", "tur": "arac", "girdi": "Günlük harcamalarımı tutan basit bir masaüstü uygulaması yapalım, C# ile olsun", "beklenen_arac": "kodlama_baslat" },
+    { "id": "arc-14", "kategori": "arac_karari", "tur": "arac", "girdi": "Claude'a söyle, giriş ekranı da eklesin", "beklenen_arac": "kodlama_cevapla" },
+
+    { "id": "yon-01", "kategori": "yonlendirme", "tur": "router", "girdi": "Euro bugün kaç lira?", "beklenen_niyet": "Guncel" },
+    { "id": "yon-02", "kategori": "yonlendirme", "tur": "router", "girdi": "Kompresörün çalışma prensibini anlatır mısın?", "beklenen_niyet": "GenelBilgi" },
+    { "id": "yon-03", "kategori": "yonlendirme", "tur": "router", "girdi": "Hesap makinesini aç", "beklenen_niyet": "Komut" },
+    { "id": "yon-04", "kategori": "yonlendirme", "tur": "router", "girdi": "Bugün canım biraz sıkkın", "beklenen_niyet": "Sohbet" },
+
+    { "id": "cik-01", "kategori": "hafiza_cikarma", "tur": "cikarma", "girdi": "Laktoz intoleransım var, süt içince midem bulanıyor.", "beklenen_kategori": "Saglik", "kontrol": { "icermeli_herhangi": ["laktoz", "Laktoz", "süt"] } },
+    { "id": "cik-02", "kategori": "hafiza_cikarma", "tur": "cikarma", "tekrar": 3, "girdi": "Entropi nedir?", "kontrol": { "bos": true } },
+    { "id": "cik-04", "kategori": "hafiza_cikarma", "tur": "cikarma", "tekrar": 3, "girdi": "Isı iletimi katılarda nasıl gerçekleşir?", "kontrol": { "bos": true } },
+    { "id": "cik-05", "kategori": "hafiza_cikarma", "tur": "cikarma", "tekrar": 3, "girdi": "Fourier yasasını açıklar mısın?", "kontrol": { "bos": true } },
+    { "id": "cik-06", "kategori": "hafiza_cikarma", "tur": "cikarma", "girdi": "Annem emekli bir öğretmen.", "beklenen_cekmece": "Patron", "kontrol": { "icermeli_herhangi": ["öğretmen"] } },
+    { "id": "cik-03", "kategori": "hafiza_cikarma", "tur": "cikarma", "girdi": "Hafta sonları basketbol oynamayı seviyorum.", "beklenen_cekmece": "Patron", "kontrol": { "icermeli_herhangi": ["basketbol", "Basketbol"] } },
+    { "id": "cik-07", "kategori": "hafiza_cikarma", "tur": "cikarma", "girdi": "Next.js ve .NET ile bir e-ticaret sitesi yapıyorum.", "beklenen_cekmece": "Is", "kontrol": { "icermeli_herhangi": ["e-ticaret", "Next.js", ".NET"] } },
+    { "id": "cik-08", "kategori": "hafiza_cikarma", "tur": "cikarma", "girdi": "Akışkanlar mekaniği vizem 12 Kasım'da.", "beklenen_cekmece": "Okul", "kontrol": { "icermeli_herhangi": ["vize", "Vize", "12 Kasım"] } },
+    { "id": "cik-09", "kategori": "hafiza_cikarma", "tur": "cikarma", "girdi": "Şunu bil, unutma: Docker konteynerleri ana makinenin çekirdeğini paylaşır.", "beklenen_cekmece": "Bilgi", "kontrol": { "icermeli_herhangi": ["çekirdek", "Docker"] } }
+  ]
+}

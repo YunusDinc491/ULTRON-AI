@@ -1,0 +1,25 @@
+{
+  "aciklama": "KONTROL SETİ: düzeltmeler sırasında BAKILMAZ, sadece başta ve sonda ölçülür (ezber yerine gerçek iyileşmeyi görmek için).",
+  "sorular": [
+    { "id": "k01", "seviye": "1", "konu": "sohbet", "soru": "Bugün çok yoruldum, kısa bir şey söyle.", "beklenen": "Kısa, samimi; 1-2 cümle." },
+    { "id": "k02", "seviye": "1", "konu": "css", "soru": "CSS'te margin ile padding farkı ne?", "beklenen": "padding içerik ile kenarlık arası, margin kenarlığın dışı." },
+    { "id": "k03", "seviye": "1", "konu": "git", "soru": "git pull ile git fetch farkı ne?", "beklenen": "fetch sadece indirir, pull indirir + birleştirir (merge/rebase)." },
+    { "id": "k04", "seviye": "2", "konu": "javascript", "soru": "JavaScript'te let, const ve var arasındaki fark ne?", "beklenen": "var fonksiyon kapsamlı, hoisting; let/const blok kapsamlı; const yeniden atanamaz (nesne içi değişebilir)." },
+    { "id": "k05", "seviye": "2", "konu": "react", "soru": "React'te props ile state farkı ne?", "beklenen": "props dışarıdan gelir, salt okunur; state bileşenin kendi değişen verisi." },
+    { "id": "k06", "seviye": "2", "konu": "csharp", "soru": "C#'ta class ile record arasındaki fark ne?", "beklenen": "record değer eşitliği, with ifadesi, değişmezliğe uygun; class referans eşitliği." },
+    { "id": "k07", "seviye": "2", "konu": "efcore", "soru": "EF Core'da Include ile Select (projeksiyon) arasında ne fark var, hangisi daha performanslı?", "beklenen": "Include bütün ilişkili varlığı getirir, Select sadece gereken alanları; Select genelde daha az veri." },
+    { "id": "k08", "seviye": "2", "konu": "aspnetcore", "soru": "ASP.NET Core'da middleware sırası neden önemli?", "beklenen": "İstek sırayla geçer; ör. UseAuthentication UseAuthorization'dan önce; yanlış sırada çalışmaz." },
+    { "id": "k09", "seviye": "2", "konu": "flutter", "soru": "Flutter'da hot reload ile hot restart farkı ne?", "beklenen": "hot reload state'i korur, kodu enjekte eder; hot restart state'i sıfırlar." },
+    { "id": "k10", "seviye": "3", "konu": "hata ayıklama", "soru": "C#'ta 'Object reference not set to an instance of an object' hatası alıyorum. Ne demek, nasıl bulurum?", "beklenen": "NullReferenceException; null bir nesnenin üyesine erişim; stack trace satırı, debugger, ?. / null kontrolü, nullable reference types." },
+    { "id": "k11", "seviye": "3", "konu": "kod okuma", "soru": "Şu kod ne yazdırır? console.log([1, 2, 3].map(parseInt))", "beklenen": "[1, NaN, NaN]; map index'i radix olarak geçirir." },
+    { "id": "k12", "seviye": "3", "konu": "nextjs", "soru": "Next.js'te 'Hydration failed' hatası neden olur?", "beklenen": "Sunucu HTML'i ile istemcinin ilk render'ı farklı; Date/Math.random/window kullanımı, geçersiz HTML iç içe; useEffect ile istemcide." },
+    { "id": "k13", "seviye": "3", "konu": "mimari", "soru": "Monolit mi mikroservis mi? Tek başıma geliştirdiğim bir proje için.", "beklenen": "Tek kişi için modüler monolit; mikroservis operasyonel yük; net öneri." },
+    { "id": "k14", "seviye": "3", "konu": "güvenlik", "soru": "SQL injection nedir, EF Core kullanırken nasıl korunurum?", "beklenen": "Kullanıcı girdisi sorguya karışır; EF Core LINQ parametreli; FromSqlRaw'da string birleştirme yapma, FromSqlInterpolated/parametre." },
+    { "id": "k15", "seviye": "4", "konu": "neden-sonuç", "soru": "Bir ısı değiştiricide akışkanları ters yönlü (counterflow) akıtmak neden paralel akıştan daha verimlidir?", "beklenen": "Boy boyunca sıcaklık farkı daha düzgün/büyük kalır → LMTD büyük → aynı alanla daha çok ısı; soğuk çıkış sıcak çıkıştan yüksek olabilir." },
+    { "id": "k16", "seviye": "4", "konu": "neden-sonuç", "soru": "Bir mobil uygulamada pil neden hızlı biter? Yazılım tarafında sebep-sonuç olarak anlat.", "beklenen": "Sürekli konum/GPS, arka plan işleri, sık ağ istekleri (radyo uyanık kalır), wake lock, animasyonlar; çözümler." },
+    { "id": "k17", "seviye": "4", "konu": "neden-sonuç", "soru": "Bir web sunucusuna çok fazla eşzamanlı istek gelince yanıt süreleri neden doğrusal değil de birden patlar?", "beklenen": "Kuyruk teorisi: kullanım %100'e yaklaştıkça bekleme süresi üstel artar; thread/bağlantı havuzu dolar; zincirleme zaman aşımı." },
+    { "id": "k18", "seviye": "4", "konu": "devretme", "soru": "Flutter ile not alma uygulaması yaz: giriş ekranı, notlar listesi, not ekleme ve Firebase senkronizasyonu olsun.", "beklenen": "Kısa plan + 'Bunu Claude Code'a vereyim mi?'." },
+    { "id": "k19", "seviye": "3", "konu": "dürüstlük", "soru": "React'teki useQuantumState hook'u nasıl kullanılır?", "beklenen": "Böyle bir yerleşik hook olmadığını söyler." },
+    { "id": "k20", "seviye": "2", "konu": "genel", "soru": "Bir sayının asal olup olmadığını kontrol etmenin en basit verimli yolu nedir?", "beklenen": "2'den kareköküne kadar bölünebilme; kısa kod örneği." }
+  ]
+}

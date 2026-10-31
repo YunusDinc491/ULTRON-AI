@@ -1,0 +1,301 @@
+@* /hafiza: Ultron'un senin hakkında bildikleri. Ara, ekle, düzenle, sil (geri alınabilir), kategorileri yönet,
+   modelin kategori önerilerini onayla/reddet. Model yanlış bilgi çıkarabilir: son söz her zaman sende. *@
+@implements IDisposable
+
+<aside class="panel memory-panel">
+    <div class="panel-head">
+        <span class="panel-title">HAFIZA@(_data is null ? "" : $" · {_data.Active.Count} KAYIT")</span>
+        <button class="x" title="Kapat (Esc)" @onclick="OnClose">✕</button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="muted err-line">@_error</div>
+    }
+
+    @if (_data is null)
+    {
+        <div class="muted">Yükleniyor…</div>
+    }
+    else
+    {
+        @* ---- Modelin kategori önerileri ---- *@
+        @foreach (var s in _data.Suggestions)
+        {
+            <div class="suggestion">
+                <div class="s-text">
+                    <span class="s-label">YENİ KATEGORİ ÖNERİSİ</span>
+                    <b>@s.Name</b> <span class="muted">· @s.Description</span>
+                    @if (!string.IsNullOrEmpty(s.Example))
+                    {
+                        <div class="muted s-example">Örnek: “@s.Example”</div>
+                    }
+                </div>
+                <div class="s-actions">
+                    <button class="ghost" @onclick="() => ResolveAsync(s.Id, false)">Reddet</button>
+                    <button class="primary" @onclick="() => ResolveAsync(s.Id, true)">Ekle</button>
+                </div>
+            </div>
+        }
+
+        <div class="mp-toolbar">
+            <input class="mp-search" placeholder="Hafızada ara…" @bind="_filter" @bind:event="oninput" />
+            <button class="ghost @(_view == View.Add ? "on" : "")" @onclick="() => Toggle(View.Add)">+ Bilgi</button>
+            <button class="ghost @(_view == View.Categories ? "on" : "")" @onclick="() => Toggle(View.Categories)">Kategoriler</button>
+        </div>
+
+        @if (_view == View.Add)
+        {
+            <div class="mp-form">
+                <textarea rows="2" placeholder="Ör. Kahveyi sütlü içerim." @bind="_newContent" @bind:event="oninput"></textarea>
+                <div class="mp-form-row">
+                    <CategorySelect Categories="_data.Categories" Drawers="_data.Drawers" @bind-Value="_newCategory" />
+                    <button class="primary" disabled="@string.IsNullOrWhiteSpace(_newContent)" @onclick="AddMemoryAsync">Ekle</button>
+                </div>
+            </div>
+        }
+        else if (_view == View.Categories)
+        {
+            <div class="mp-cats">
+                @foreach (var d in _data.Drawers)
+                {
+                <div class="drawer-head" title="@d.Description">@d.Name</div>
+                @if (!_data.Categories.Any(c => c.Drawer == d.Key))
+                {
+                    <div class="muted cat-desc">Henüz klasör yok; Ultron konuştukça açacak.</div>
+                }
+                @foreach (var c in _data.Categories.Where(c => c.Drawer == d.Key))
+                {
+                    var edit = _catEdits.GetValueOrDefault(c.Key);
+                    <div class="cat-row">
+                        @if (edit is null)
+                        {
+                            <div class="cat-main">
+                                <b>@c.Name</b>
+                                @if (c.IsCore) { <span class="core-badge" title="Her soruda bağlama girer">ÇEKİRDEK</span> }
+                                @if (!c.IsBuiltIn) { <span class="own-badge">SENİN</span> }
+                                <div class="muted cat-desc">@c.Description</div>
+                            </div>
+                            <button class="icon" title="Düzenle" @onclick="() => _catEdits[c.Key] = new CatEdit(c.Name, c.Description, c.IsCore)">✎</button>
+                        }
+                        else
+                        {
+                            <div class="cat-edit">
+                                <input @bind="edit.Name" maxlength="40" />
+                                <input @bind="edit.Description" placeholder="Bu kategoriye ne girer?" />
+                                <label class="check"><input type="checkbox" @bind="edit.IsCore" /> Çekirdek (her soruda dikkate alınsın)</label>
+                                <div class="mp-form-row end">
+                                    <button class="ghost" @onclick="() => _catEdits.Remove(c.Key)">İptal</button>
+                                    <button class="primary" @onclick="() => SaveCategoryAsync(c.Key, edit)">Kaydet</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                }
+                <div class="mp-form">
+                    <div class="section" style="margin-top:4px">YENİ KATEGORİ</div>
+                    <input placeholder="Ad (ör. Araç)" maxlength="40" @bind="_newCatName" @bind:event="oninput" />
+                    <input placeholder="Açıklama (ör. Araba, bakım, sigorta)" @bind="_newCatDescription" />
+                    <div class="mp-form-row end">
+                        <select class="cat-select" @bind="_newCatDrawer">
+                            @foreach (var d in _data.Drawers)
+                            {
+                                <option value="@d.Key">@d.Name</option>
+                            }
+                        </select>
+                        <button class="primary" disabled="@string.IsNullOrWhiteSpace(_newCatName)" @onclick="AddCategoryAsync">Kategori ekle</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (_view != View.Categories)
+        {
+            var any = false;
+            @foreach (var d in _data.Drawers)
+            {
+            var drawerItems = _data.Categories.Where(c => c.Drawer == d.Key)
+                .Sum(c => _data.Active.Count(m => m.Category == c.Key && Matches(m)));
+            if (drawerItems == 0)
+                continue;
+            <div class="drawer-head" title="@d.Description">@d.Name <span class="count">@drawerItems</span></div>
+            @foreach (var c in _data.Categories.Where(c => c.Drawer == d.Key))
+            {
+                var items = _data.Active.Where(m => m.Category == c.Key && Matches(m)).ToList();
+                if (items.Count == 0)
+                    continue;
+                any = true;
+                <div class="section">@c.Name.ToUpper(System.Globalization.CultureInfo.GetCultureInfo("tr-TR")) @(c.IsCore ? "· ÇEKİRDEK" : "") <span class="count">@items.Count</span></div>
+                @foreach (var m in items)
+                {
+                    var edit = _memEdits.GetValueOrDefault(m.Id);
+                    <div class="mem @(edit is null ? "" : "editing")">
+                        @if (edit is null)
+                        {
+                            <span class="mem-text">@m.Content</span>
+                            <span class="mem-actions">
+                                <button class="icon" title="Düzenle" @onclick="() => _memEdits[m.Id] = new MemEdit(m.Content, m.Category)">✎</button>
+                                <button class="icon danger" title="Sil (geri alınabilir)" @onclick="() => DeleteAsync(m)">🗑</button>
+                            </span>
+                        }
+                        else
+                        {
+                            <textarea rows="2" @bind="edit.Content" @bind:event="oninput"></textarea>
+                            <div class="mp-form-row">
+                                <CategorySelect Categories="_data.Categories" Drawers="_data.Drawers" @bind-Value="edit.Category" />
+                                <button class="ghost" @onclick="() => _memEdits.Remove(m.Id)">İptal</button>
+                                <button class="primary" disabled="@string.IsNullOrWhiteSpace(edit.Content)" @onclick="() => SaveMemoryAsync(m.Id, edit)">Kaydet</button>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+            }
+            @if (!any)
+            {
+                <div class="muted" style="margin-top:12px">@(string.IsNullOrWhiteSpace(_filter) ? "Henüz kayıt yok. Konuştukça Ultron öğrenecek." : "Eşleşen kayıt yok.")</div>
+            }
+
+            @if (_data.RecentlyDeleted.Count > 0)
+            {
+                <button class="link" @onclick="() => _showDeleted = !_showDeleted">Silinenler (@_data.RecentlyDeleted.Count) @(_showDeleted ? "▴" : "▾")</button>
+                @if (_showDeleted)
+                {
+                    @foreach (var m in _data.RecentlyDeleted)
+                    {
+                        <div class="mem deleted">
+                            <span class="mem-text">@m.Content</span>
+                            <button class="ghost small" @onclick="() => RestoreAsync(m.Id)">Geri al</button>
+                        </div>
+                    }
+                }
+            }
+        }
+    }
+
+    @if (_undo is not null)
+    {
+        <div class="undo">
+            <span>Silindi: “@Short(_undo.Content)”</span>
+            <button class="link" @onclick="() => RestoreAsync(_undo.Id)">Geri al</button>
+        </div>
+    }
+</aside>
+
+@code {
+    private enum View { List, Add, Categories }
+
+    private sealed class MemEdit(string content, string category)
+    {
+        public string Content { get; set; } = content;
+        public string Category { get; set; } = category;
+    }
+
+    private sealed class CatEdit(string name, string description, bool isCore)
+    {
+        public string Name { get; set; } = name;
+        public string Description { get; set; } = description;
+        public bool IsCore { get; set; } = isCore;
+    }
+
+    [Parameter, EditorRequired] public UltronClient Client { get; set; } = null!;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private MemoryListDto? _data;
+    private string? _error;
+    private string _filter = "";
+    private View _view = View.List;
+    private bool _showDeleted;
+    private string _newContent = "", _newCategory = "", _newCatName = "", _newCatDescription = "", _newCatDrawer = "Patron";
+    private readonly Dictionary<long, MemEdit> _memEdits = [];
+    private readonly Dictionary<string, CatEdit> _catEdits = [];
+    private MemoryItemDto? _undo;
+    private Timer? _undoTimer;
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        await Run(async () => _data = await Client.ListMemoriesAsync());
+        // Klasörler Ultron'un açtıklarına göre değişir: seçili olan kalktıysa ilkine geç.
+        if (_data is not null && !_data.Categories.Any(c => c.Key == _newCategory))
+            _newCategory = _data.Categories.FirstOrDefault()?.Key ?? "";
+    }
+
+    private void Toggle(View view) => _view = _view == view ? View.List : view;
+
+    private bool Matches(MemoryItemDto m) =>
+        string.IsNullOrWhiteSpace(_filter) || m.Content.Contains(_filter.Trim(), StringComparison.CurrentCultureIgnoreCase);
+
+    private async Task AddMemoryAsync()
+    {
+        await Run(() => Client.AddMemoryAsync(_newContent.Trim(), _newCategory));
+        _newContent = "";
+        _view = View.List;
+        await ReloadAsync();
+    }
+
+    private async Task SaveMemoryAsync(long id, MemEdit edit)
+    {
+        await Run(() => Client.UpdateMemoryAsync(id, edit.Content.Trim(), edit.Category));
+        _memEdits.Remove(id);
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(MemoryItemDto m)
+    {
+        await Run(() => Client.DeleteMemoryAsync(m.Id));
+        _undo = m;
+        _undoTimer?.Dispose();
+        _undoTimer = new Timer(_ => InvokeAsync(() => { _undo = null; StateHasChanged(); }), null, 8000, Timeout.Infinite);
+        await ReloadAsync();
+    }
+
+    private async Task RestoreAsync(long id)
+    {
+        await Run(() => Client.RestoreMemoryAsync(id));
+        if (_undo?.Id == id)
+            _undo = null;
+        await ReloadAsync();
+    }
+
+    private async Task SaveCategoryAsync(string key, CatEdit edit)
+    {
+        await Run(() => Client.UpdateCategoryAsync(key, edit.Name.Trim(), edit.Description.Trim(), edit.IsCore));
+        _catEdits.Remove(key);
+        await ReloadAsync();
+    }
+
+    private async Task AddCategoryAsync()
+    {
+        await Run(() => Client.AddCategoryAsync(_newCatName.Trim(), _newCatDescription.Trim(), _newCatDrawer));
+        _newCatName = _newCatDescription = "";
+        await ReloadAsync();
+    }
+
+    private async Task ResolveAsync(long id, bool accept)
+    {
+        await Run(() => Client.ResolveCategorySuggestionAsync(id, accept));
+        await ReloadAsync();
+    }
+
+    /// <summary>Sunucu hatası panelde tek satır olarak görünür; panel çökmez.</summary>
+    private async Task Run(Func<Task> action)
+    {
+        try
+        {
+            _error = null;
+            await action();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message.Replace("An unexpected error occurred invoking", "Hata:");
+        }
+    }
+
+    private static string Short(string s) => s.Length <= 40 ? s : s[..40] + "…";
+
+    public void Dispose() => _undoTimer?.Dispose();
+}

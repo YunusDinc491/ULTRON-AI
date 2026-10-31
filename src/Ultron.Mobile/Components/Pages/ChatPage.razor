@@ -1,0 +1,129 @@
+@page "/sohbet"
+@implements IDisposable
+@inject ChatSession Chat
+@inject VoiceRecorder Recorder
+@inject VoicePlayer Player
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="screen">
+    <div class="chat-head">
+        <button class="icon-btn" @onclick='() => Nav.NavigateTo("/")'>←</button>
+        <div class="title">
+            <b>Ultron</b>
+            <small>@(Chat.Busy ? "yazıyor…" : "bilgisayarındaki asistan")</small>
+        </div>
+        <div class="tiers">
+            @foreach (var t in Home.Tiers)
+            {
+                <button class="@(t == _tier ? "on" : "")" @onclick="() => SetTierAsync(t)">@Home.TierName(t)</button>
+            }
+        </div>
+    </div>
+
+    <div class="scroll" id="messages">
+        <div class="messages">
+            @if (_error is not null)
+            {
+                <div class="glass empty">@_error</div>
+            }
+            @foreach (var line in Chat.Lines)
+            {
+                <div class="bubble @(line.FromUser ? "me" : "ai")">
+                    @if (line.FromUser)
+                    {
+                        @line.Text
+                    }
+                    else
+                    {
+                        @if (line.Status is not null && line.Text.Length == 0)
+                        {
+                            <span class="status">@line.Status</span>
+                        }
+                        <div class="@(line.Streaming ? "typing" : "")">@Markdown.Html(line.Text)</div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="glass composer">
+        <button class="icon-btn @(Recorder.Recording ? "accent" : "")" @onclick="VoiceAsync" disabled="@Chat.Busy">🎙</button>
+        <textarea rows="1" placeholder="@(Recorder.Recording ? "Dinliyorum…" : "Ultron'a yaz…")" @bind="_text" @bind:event="oninput"></textarea>
+        <button class="icon-btn accent" @onclick="SendAsync" disabled="@(Chat.Busy || string.IsNullOrWhiteSpace(_text))">↑</button>
+    </div>
+</div>
+
+@code {
+    private string _text = "", _tier = "ultron";
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Chat.Changed += Refresh;
+        try
+        {
+            await Chat.LoadAsync();
+            _tier = await Chat.TierAsync();
+        }
+        catch (Exception)
+        {
+            _error = "Ultron'a ulaşılamadı. Bilgisayar açık ve Tailscale bağlı mı?";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) =>
+        await JS.InvokeVoidAsync("eval", "var m=document.getElementById('messages'); if(m) m.scrollTop=m.scrollHeight;");
+
+    private async Task SendAsync()
+    {
+        var text = _text;
+        _text = "";
+        await Chat.SendAsync(text, speak: false);
+    }
+
+    /// <summary>Mikrofon: konuş, susunca yazıya çevrilir ve gönderilir; cevabın başı sesli okunur.</summary>
+    private async Task VoiceAsync()
+    {
+        if (Recorder.Recording)
+        {
+            Recorder.Stop();
+            return;
+        }
+        Player.Stop();
+        StateHasChanged();
+        var wav = await Recorder.RecordAsync();
+        StateHasChanged();
+        if (wav is null)
+            return;
+        try
+        {
+            var text = await Chat.TranscribeAsync(wav);
+            if (text.Length > 0)
+                await Chat.SendAsync(text, speak: true);
+        }
+        catch (Exception)
+        {
+            _error = "Ses yazıya çevrilemedi: Ultron'a ulaşılamadı.";
+        }
+    }
+
+    private async Task SetTierAsync(string tier)
+    {
+        try
+        {
+            await Chat.SetTierAsync(tier);
+            _tier = await Chat.TierAsync(); // Pro, bağlı hesap yoksa seçilmez (bilgisayar reddeder)
+            if (tier == "pro" && _tier != "pro")
+                _error = Home.ProLocked;
+        }
+        catch (Exception)
+        {
+            _error = "Paket değiştirilemedi.";
+        }
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Chat.Changed -= Refresh;
+}

@@ -1,0 +1,449 @@
+@* İlk açılış sihirbazı (Faz 26). Başka bir bilgisayarda Setup'ın getirmediklerini sırayla tamamlar: yapay zekâ motoru (Ollama +
+   modeller), ses modelleri, web araması (Tavily ya da Docker + SearXNG), isteğe bağlı anahtarlar, kısa tanışma, "Ultron" ses örnekleri.
+   Hazır olan adımlar listeye hiç girmez: zaten kurulu bir bilgisayarda kısa hâliyle açılır. ✕ ile kapatılırsa bir sonraki açılışta
+   yine gelir; "Bitir" bir daha kendiliğinden açılmamasını sağlar (logo menüsü → [KURULUM] ile her zaman açılır). *@
+@using System.Diagnostics
+@using System.IO
+@using Ultron.Desktop.Voice
+
+<aside class="panel learning-panel setup-wizard">
+    <div class="panel-head">
+        <span class="panel-title">KURULUM · @(_steps.Count == 0 ? "" : $"{_index + 1}/{_steps.Count}")</span>
+        <button class="x" title="Şimdilik kapat (bir sonraki açılışta yine gelir)" disabled="@_busy" @onclick="OnClose">✕</button>
+    </div>
+
+    @if (_status is null)
+    {
+        <div class="muted">@(_error ?? "Kontrol ediliyor…")</div>
+    }
+    else
+    {
+        <div class="sw-dots">
+            @for (var i = 0; i < _steps.Count; i++)
+            {
+                <span class="@(i == _index ? "on" : i < _index ? "done" : "")"></span>
+            }
+        </div>
+
+        @switch (Step)
+        {
+            case "welcome":
+                <h2 class="sw-title">@(_short ? "Ultron güncellendi" : "Ultron'a hoş geldin")</h2>
+                @if (_short)
+                {
+                    <p class="lp-help">Bu bilgisayarda Ultron'un motoru ve sesi hazır. Yeni sürümde Ultron sana nasıl seslenileceğini soruyor ve çağrı kelimesi artık <b>"Ultron"</b>; birkaç adımda tamamlayalım.</p>
+                }
+                else
+                {
+                    <p class="lp-help">Ultron bu bilgisayarda çalışan kişisel bir asistan: sohbet, hafıza, ders, sesli komut, hatırlatmalar. Çalışabilmesi için birkaç şeyin kurulması gerekiyor; her adımda ne olduğunu yazacağım ve hiçbir şey sen düğmeye basmadan başlamayacak.</p>
+                    <p class="lp-help">Toplam indirme yaklaşık <b>@Gb(TotalDownload)</b>. İstediğin adımı atlayıp sonra logo menüsü → <b>[KURULUM]</b> ile dönebilirsin.</p>
+                }
+                break;
+
+            case "engine":
+                <h2 class="sw-title">Yapay zekâ motoru</h2>
+                <p class="lp-help">Ultron'un beyni bu bilgisayarda çalışır (<b>Ollama</b>); konuşmaların ve hafızan internete gitmez. Önce motor, sonra iki model iner: sohbet modeli (gemma4, ~6,1 GB) ve hafıza arama modeli (~0,6 GB).</p>
+                <div class="sw-checks">
+                    <div class="@(_status.OllamaRunning ? "ok" : "")">@(_status.OllamaRunning ? "✓" : "○") Ollama @(_status.OllamaRunning ? "çalışıyor" : _status.OllamaInstalled ? "kurulu ama kapalı" : "kurulu değil")</div>
+                    <div class="@(_status.EngineReady ? "ok" : "")">@(_status.EngineReady ? "✓" : "○") Modeller @(_status.MissingModels.Count == 0 ? "hazır" : "eksik: " + string.Join(", ", _status.MissingModels))</div>
+                </div>
+                @if (!_status.OllamaRunning)
+                {
+                    <div class="s-actions">
+                        <button class="primary" disabled="@_busy" @onclick='() => RunAsync(ChatHubContract.InstallOllama)'>@(_status.OllamaInstalled ? "Ollama'yı başlat" : "Ollama'yı kur")</button>
+                        <button class="ghost" disabled="@_busy" @onclick='() => Open("https://ollama.com/download")'>İndirme sayfası</button>
+                    </div>
+                    @if (!_status.OllamaInstalled)
+                    {
+                        <p class="muted sw-small">Windows'un paket yöneticisi (winget) resmi Ollama'yı kurar; böylece Ollama'nın lisans koşullarını kabul etmiş olursun.</p>
+                    }
+                }
+                else if (!_status.EngineReady)
+                {
+                    <div class="s-actions">
+                        <button class="primary" disabled="@_busy" @onclick='() => RunAsync(ChatHubContract.PullModels)'>Modelleri indir</button>
+                    </div>
+                }
+                break;
+
+            case "voice":
+                <h2 class="sw-title">Ses</h2>
+                <p class="lp-help">Konuşmanı yazıya çeviren ve "Ultron" dediğini duyan modeller (Whisper), bir de ücretsiz yerel Türkçe ses (Piper). Hepsi bu bilgisayarda çalışır; sesin dışarı gitmez.</p>
+                <div class="sw-checks">
+                    <div class="@(_status.VoiceReady ? "ok" : "")">@(_status.VoiceReady ? "✓ Ses modelleri hazır" : $"○ {_status.MissingVoiceFiles.Count} dosya eksik (~{Gb(_status.VoiceDownloadBytes)})")</div>
+                </div>
+                @if (!_status.VoiceReady)
+                {
+                    <div class="s-actions">
+                        <button class="primary" disabled="@_busy" @onclick='() => RunAsync(ChatHubContract.DownloadVoiceModels)'>Ses modellerini indir</button>
+                    </div>
+                }
+                break;
+
+            case "web":
+                <h2 class="sw-title">Web araması</h2>
+                <p class="lp-help">Güncel sorular (hava, haber, döviz, "şu ne zaman?") için Ultron'un bir arama motoruna ihtiyacı var. İki yol var; birini seçmen yeterli.</p>
+                <div class="sw-checks">
+                    <div class="@(_status.WebReady ? "ok" : "")">@(_status.WebReady ? "✓ Web araması hazır (" + (_status.TavilyKey ? "Tavily" : "SearXNG") + ")" : "○ Henüz arama motoru yok")</div>
+                </div>
+                <div class="sw-choices">
+                    <div class="sw-choice">
+                        <b>Tavily</b> <span class="muted">· kolay</span>
+                        <ul>
+                            <li class="plus">2 dakikada hazır, kurulum yok</li>
+                            <li class="plus">Ayda 1000 arama ücretsiz</li>
+                            <li class="minus">Aramalar Tavily'nin sunucusuna gider</li>
+                            <li class="minus">Aylık sınır var</li>
+                        </ul>
+                        <input class="sw-input" type="password" placeholder="tvly-…" @bind="_tavily" @bind:event="oninput" />
+                        <div class="s-actions">
+                            <button class="primary" disabled="@(_busy || string.IsNullOrWhiteSpace(_tavily))" @onclick='() => SaveKeyAsync("tavily", _tavily)'>Kaydet ve dene</button>
+                            <button class="ghost" @onclick='() => Open("https://app.tavily.com")'>Ücretsiz anahtar al</button>
+                        </div>
+                    </div>
+                    <div class="sw-choice">
+                        <b>Docker + SearXNG</b> <span class="muted">· yerel</span>
+                        <ul>
+                            <li class="plus">Sınırsız ve ücretsiz</li>
+                            <li class="plus">Tamamen bu bilgisayarda</li>
+                            <li class="minus">Docker Desktop birkaç GB, yönetici izni ister</li>
+                            <li class="minus">Yeniden başlatma isteyebilir, açılışı biraz yavaşlatır</li>
+                        </ul>
+                        <div class="s-actions">
+                            @if (!_status.DockerInstalled)
+                            {
+                                <button class="primary" disabled="@_busy" @onclick='() => RunAsync(ChatHubContract.InstallDocker)'>Docker Desktop'ı kur</button>
+                            }
+                            else
+                            {
+                                <button class="primary" disabled="@(_busy || _status.SearxngRunning)" @onclick='() => RunAsync(ChatHubContract.SetupSearxng)'>Arama motorunu kur</button>
+                            }
+                        </div>
+                    </div>
+                </div>
+                break;
+
+            case "keys":
+                <h2 class="sw-title">İsteğe bağlı: bulut hizmetleri</h2>
+                <p class="lp-help">Hiçbiri zorunlu değil; boş bırakırsan Ultron yerel modellerle çalışır.</p>
+                <div class="sw-choice">
+                    <b>Groq</b> <span class="muted">· konuşma tanıma @(_status.GroqKey ? "✓ kayıtlı" : "")</span>
+                    <p class="muted sw-small">Sesli sorularını daha hızlı ve doğru yazıya çevirir (ücretsiz hesap). Ses kaydın Groq'a gider; "Ultron" algılama her zaman yerelde kalır.</p>
+                    <input class="sw-input" type="password" placeholder="gsk_…" @bind="_groq" @bind:event="oninput" />
+                    <div class="s-actions">
+                        <button class="primary" disabled="@(_busy || string.IsNullOrWhiteSpace(_groq))" @onclick='() => SaveKeyAsync("groq", _groq)'>Kaydet</button>
+                        <button class="ghost" @onclick='() => Open("https://console.groq.com/keys")'>Anahtar al</button>
+                    </div>
+                </div>
+                <div class="sw-choice">
+                    <b>ElevenLabs</b> <span class="muted">· doğal ses @(_status.ElevenLabsKey ? "✓ kayıtlı" : "")</span>
+                    <p class="muted sw-small">Ultron'un cevaplarını çok daha doğal bir sesle okur (ücretsiz sınırlı kullanım). Okunacak metin ElevenLabs'e gider.</p>
+                    <input class="sw-input" type="password" placeholder="sk_…" @bind="_eleven" @bind:event="oninput" />
+                    <div class="s-actions">
+                        <button class="primary" disabled="@(_busy || string.IsNullOrWhiteSpace(_eleven))" @onclick='() => SaveKeyAsync("elevenlabs", _eleven)'>Kaydet</button>
+                        <button class="ghost" @onclick='() => Open("https://elevenlabs.io/app/settings/api-keys")'>Anahtar al</button>
+                    </div>
+                </div>
+                break;
+
+            case "profile":
+                <h2 class="sw-title">Seni tanıyayım</h2>
+                <p class="lp-help">Hepsi isteğe bağlı. Yazdıkların sadece bu bilgisayarda, Ultron'un hafızasında durur; sonra sohbette ya da hafıza panelinde değiştirebilirsin.</p>
+                <label class="sw-field">Sana nasıl seslenmemi istersin?
+                    <input class="sw-input" placeholder="Ör. adın, ya da boş bırak" maxlength="30" @bind="_address" @bind:event="oninput" />
+                </label>
+                <label class="sw-field">Hangi şehirdesin? <span class="muted">(hava durumu ve sabah brifingi için)</span>
+                    <input class="sw-input" placeholder="Ör. İzmir" @bind="_city" @bind:event="oninput" />
+                </label>
+                <label class="sw-field">Ne iş yapıyorsun ya da ne okuyorsun?
+                    <input class="sw-input" placeholder="Ör. bilgisayar mühendisliği 2. sınıf" @bind="_work" @bind:event="oninput" />
+                </label>
+                <label class="sw-field">İlgi alanların
+                    <input class="sw-input" placeholder="Ör. web geliştirme, futbol, gitar" @bind="_interests" @bind:event="oninput" />
+                </label>
+                break;
+
+            case "wake":
+                <h2 class="sw-title">"Ultron" de, seni duyayım</h2>
+                <p class="lp-help">Ultron'u düğmeye basmadan, adını söyleyerek çağırabilirsin. Sesini tanıması için <b>@WakeWordRules.SamplesWanted kez</b> "Ultron" demen gerekiyor; biraz farklı tonlarda söylersen daha iyi tanır. Kayıtlar bu bilgisayardan çıkmaz.</p>
+                <div class="sw-checks">
+                    <div class="@(_samples >= WakeWordRules.SamplesWanted ? "ok" : "")">@(_samples >= WakeWordRules.SamplesWanted ? "✓" : "○") @Math.Min(_samples, WakeWordRules.SamplesWanted) / @WakeWordRules.SamplesWanted ses örneği</div>
+                </div>
+                <div class="s-actions">
+                    <button class="primary" @onclick="WindowBridge.ShowWakeWordSetup">Ses örneklerini kaydet</button>
+                    <button class="ghost" @onclick="CountSamples">Yenile</button>
+                </div>
+                @if (!_status.VoiceReady)
+                {
+                    <p class="muted sw-small">Önce ses modelleri inmeli (her kayıt "gerçekten Ultron mu?" diye onlarla denetlenir).</p>
+                }
+                break;
+
+            case "done":
+                <h2 class="sw-title">Hazır</h2>
+                <div class="sw-checks">
+                    <div class="@(_status.EngineReady ? "ok" : "warn")">@(_status.EngineReady ? "✓ Yapay zekâ motoru" : "! Yapay zekâ motoru eksik: Ultron cevap veremez")</div>
+                    <div class="@(_status.VoiceReady ? "ok" : "warn")">@(_status.VoiceReady ? "✓ Ses" : "! Ses modelleri eksik: sesli özellikler çalışmaz")</div>
+                    <div class="@(_status.WebReady ? "ok" : "warn")">@(_status.WebReady ? "✓ Web araması" : "! Web araması yok: güncel sorular cevaplanmaz")</div>
+                    <div class="@(_samples >= WakeWordRules.SamplesWanted ? "ok" : "warn")">@(_samples >= WakeWordRules.SamplesWanted ? "✓ \"Ultron\" ile çağırma" : "! Ses örnekleri eksik: çağırmak için düğmeyi kullan")</div>
+                </div>
+                <p class="lp-help">Eksikleri istediğin zaman logo menüsü → <b>[KURULUM]</b> ile tamamlayabilirsin.</p>
+                break;
+        }
+
+        @if (_progress is not null)
+        {
+            <div class="sw-progress @(_progressError ? "err" : "")">
+                @if (_percent is { } p)
+                {
+                    <div class="sw-bar"><span style="width:@(p.ToString("0", System.Globalization.CultureInfo.InvariantCulture))%"></span></div>
+                }
+                <div class="muted sw-small">@_progress</div>
+            </div>
+        }
+        @if (_error is not null)
+        {
+            <div class="err-line sw-small">@_error</div>
+        }
+
+        <div class="s-actions end sw-nav">
+            @if (_index > 0)
+            {
+                <button class="ghost" disabled="@_busy" @onclick="() => Go(-1)">Geri</button>
+            }
+            @if (Step is "engine" or "voice" or "web")
+            {
+                <button class="ghost" disabled="@_busy" @onclick="RefreshAsync">Tekrar kontrol et</button>
+            }
+            @if (Step == "done")
+            {
+                <button class="primary" disabled="@_busy" @onclick="FinishAsync">Bitir</button>
+            }
+            else
+            {
+                <button class="primary" disabled="@_busy" @onclick="NextAsync">@(StepReady ? "İleri" : "Atla")</button>
+            }
+        </div>
+    }
+</aside>
+
+@code {
+    [Parameter, EditorRequired] public UltronClient Client { get; set; } = null!;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private SetupStatusDto? _status;
+    private readonly List<string> _steps = [];
+    private int _index;
+    private bool _short, _busy, _progressError;
+    private string? _progress, _error;
+    private double? _percent;
+    private int _samples;
+    private string _tavily = "", _groq = "", _eleven = "", _address = "", _city = "", _work = "", _interests = "";
+
+    private string Step => _steps.Count == 0 ? "" : _steps[_index];
+
+    private const long ModelBytes = 6_800_000_000; // gemma4 6,1 GB + qwen3-embedding 0,6 GB (2026-10-30)
+
+    private long TotalDownload => (_status?.EngineReady == false ? ModelBytes : 0) + (_status?.VoiceDownloadBytes ?? 0);
+
+    /// <summary>Adımın işi tamam mı ("İleri"), yoksa atlanıyor mu ("Atla").</summary>
+    private bool StepReady => Step switch
+    {
+        "engine" => _status!.EngineReady,
+        "voice" => _status!.VoiceReady,
+        "web" => _status!.WebReady,
+        "wake" => _samples >= WakeWordRules.SamplesWanted,
+        _ => true,
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _status = await Client.GetSetupStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = "Kurulum durumu alınamadı: " + ex.Message;
+            return;
+        }
+        CountSamples();
+        _short = _status.EngineReady && _status.VoiceReady;
+        _address = _status.Address;
+        _city = _status.City;
+        // Hazır olanlar listeye girmez; isteğe bağlı anahtarlar sadece ilk kurulumda sorulur.
+        _steps.Add("welcome");
+        if (!_status.EngineReady) _steps.Add("engine");
+        if (!_status.VoiceReady) _steps.Add("voice");
+        if (!_status.WebReady) _steps.Add("web");
+        if (!_short) _steps.Add("keys");
+        _steps.Add("profile");
+        if (_samples < WakeWordRules.SamplesWanted) _steps.Add("wake");
+        _steps.Add("done");
+    }
+
+    private void CountSamples()
+    {
+        try
+        {
+            _samples = Directory.Exists(WakeWordRules.SamplesFolder) ? Directory.GetFiles(WakeWordRules.SamplesFolder, WakeWordRules.SamplePrefix + "*.wav").Length : 0;
+        }
+        catch (IOException)
+        {
+            _samples = 0;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _error = null;
+        try
+        {
+            _status = await Client.GetSetupStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        CountSamples();
+    }
+
+    /// <summary>Uzun adımı çalıştırır (indirme/kurulum); ilerleme satır satır gelir. winget yoksa indirme sayfası açılır.</summary>
+    private async Task RunAsync(string hubStep)
+    {
+        _busy = true;
+        _error = null;
+        _progressError = false;
+        _progress = "Başlıyor…";
+        _percent = null;
+        try
+        {
+            await foreach (var p in Client.RunSetupStepAsync(hubStep, CancellationToken.None))
+            {
+                if (p.Error == "winget")
+                {
+                    _error = "Bu bilgisayarda Windows paket yöneticisi (winget) yok; indirme sayfasını açıyorum. Kurduktan sonra \"Tekrar kontrol et\"e bas.";
+                    Open(hubStep == ChatHubContract.InstallDocker ? "https://www.docker.com/products/docker-desktop/" : "https://ollama.com/download");
+                    _progress = null;
+                    break;
+                }
+                if (p.Error is not null)
+                {
+                    _error = p.Error;
+                    _progressError = true;
+                }
+                _progress = p.Text;
+                _percent = p.Percent;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = "Adım yarıda kaldı: " + ex.Message.Replace("An unexpected error occurred invoking", "");
+            _progressError = true;
+        }
+        finally
+        {
+            _busy = false;
+        }
+        await RefreshAsync();
+        // Motor kurulunca modeller de eksikse, kullanıcı ikinci kez düğmeye basmasın diye hemen başlar.
+        if (hubStep == ChatHubContract.InstallOllama && _error is null && _status is { OllamaRunning: true, EngineReady: false })
+            await RunAsync(ChatHubContract.PullModels);
+    }
+
+    private async Task SaveKeyAsync(string kind, string value)
+    {
+        _busy = true;
+        _error = null;
+        _progress = kind == "tavily" ? "Anahtar deneniyor…" : null;
+        try
+        {
+            _error = await Client.SaveSetupKeyAsync(kind, value);
+            _progress = _error is null ? "Kaydedildi." : null;
+            if (_error is null)
+            {
+                if (kind == "tavily") _tavily = "";
+                if (kind == "groq") _groq = "";
+                if (kind == "elevenlabs") _eleven = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+        await RefreshAsync();
+    }
+
+    private async Task NextAsync()
+    {
+        if (Step == "profile")
+        {
+            _busy = true;
+            _progress = "Kaydediliyor…";
+            try
+            {
+                _error = await Client.SaveSetupProfileAsync(new SetupProfileDto(_address, _city, _work, _interests));
+            }
+            catch (Exception ex)
+            {
+                _error = ex.Message;
+            }
+            finally
+            {
+                _busy = false;
+                _progress = null;
+            }
+            if (_error is not null && !_error.Contains("hafızaya yazılamadı"))
+                return; // hitap/şehir hatalı: düzeltsin (hafıza uyarısı engel değil)
+            var warning = _error;
+            Go(1);
+            _error = warning; // hafıza uyarısı sonraki adımda da görünsün
+            return;
+        }
+        Go(1);
+    }
+
+    private void Go(int delta)
+    {
+        _index = Math.Clamp(_index + delta, 0, _steps.Count - 1);
+        _progress = null;
+        _percent = null;
+        if (delta > 0)
+            _error = null;
+        CountSamples();
+    }
+
+    private async Task FinishAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Client.CompleteSetupAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+        await OnClose.InvokeAsync();
+    }
+
+    private static void Open(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            DesktopLog.Write("Bağlantı açılamadı: " + url);
+        }
+    }
+
+    private static string Gb(long bytes) => bytes >= 1_000_000_000 ? $"{bytes / 1e9:0.#} GB" : $"{bytes / 1e6:0} MB";
+}

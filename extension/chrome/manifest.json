@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Ultron",
+  "version": "1.0.0",
+  "description": "Ultron'un Chrome kumandası: YouTube'u kontrol eder, açık sekmeyi okur. Sadece bu bilgisayardaki Ultron'la konuşur.",
+  "permissions": ["tabs", "scripting", "storage", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Ultron", "default_popup": "options.html" },
+  "options_page": "options.html"
+}
