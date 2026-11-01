@@ -900,7 +900,9 @@ button.source.doc { width: 100%; text-align: left; font: inherit; color: inherit
 .brand-caret { font-size: 11px; color: rgba(103, 232, 249, .75); transition: transform .2s; }
 .brand-caret.open { transform: rotate(180deg); }
 .brand-badge { position: absolute; top: -4px; left: 22px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; background: #ff6a00; color: #fff; font: 600 9.5px/15px var(--mono); text-align: center; box-shadow: 0 0 8px rgba(255, 106, 0, .7); }
-.brand-menu-backdrop { position: fixed; inset: 0; z-index: 19; } /* üst çubuğun (z 20) altında, içeriğin üstünde */
+/* Menü açıkken çubuk (ve içindeki menü) telemetri (z 20) ile İş/Okul ekranlarının (z 60) üstüne çıkar; kapanma katmanı onun hemen altında. */
+.topbar.menu-open { z-index: 62; }
+.brand-menu-backdrop { position: fixed; inset: 0; z-index: 61; }
 .brand-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; display: flex; flex-direction: column; gap: 4px; min-width: 210px; padding: 8px; border: 1px solid rgba(0, 240, 255, .28); border-radius: 6px; background: rgba(3, 10, 22, .96); backdrop-filter: blur(14px); box-shadow: 0 10px 34px rgba(0, 0, 0, .55), 0 0 18px rgba(0, 240, 255, .12); animation: bmIn .14s ease-out; }
 @keyframes bmIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 .bm-item { text-align: left; padding: 7px 10px; font-family: var(--mono); font-size: 12px; letter-spacing: .08em; color: #a5f3fc; background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer; transition: all .15s; }

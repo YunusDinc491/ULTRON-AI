@@ -28,7 +28,7 @@
         @* Üst çubuğun backdrop-filter'ı fixed katmanı kendi içine hapseder; dışarı tıklayınca kapanma katmanı çubuğun dışında. *@
         <div class="brand-menu-backdrop" @onclick="() => _menuOpen = false"></div>
     }
-    <header class="topbar" id="topbar">
+    <header class="topbar @(_menuOpen ? "menu-open" : "")" id="topbar">
         @* (2026-10-29): üst çubukta sadece DERS ve İŞ; geri kalanlar logoya basınca açılan menüde. *@
         <div class="brand">
             <div>
@@ -53,7 +53,7 @@
                     <button role="menuitem" class="bm-item" title="Öğrenme: düzeltmeler, PRO ve web'den öğrenilenler, bildiğim siteler" @onclick='() => MenuAsync(() => RunCommandAsync("/ogrenme"))'>[ÖĞRENME@(_learningCount > 0 ? $" {_learningCount}" : "")]</button>
                     <button role="menuitem" class="bm-item" title="Bağlı telefonlar ve eşleştirme kodu" @onclick='() => MenuAsync(() => RunCommandAsync("/mobil"))'>[MOBİL]</button>
                     <button role="menuitem" class="bm-item" title="Kurulum sihirbazı: yapay zekâ motoru, ses, web araması, hitap, ses örnekleri" @onclick='() => MenuAsync(() => RunCommandAsync("/kurulum"))'>[KURULUM]</button>
-                    <button role="menuitem" class="bm-item mode" title="Gelişim: Ultron ne kadar öğreniyor, haftalık grafikler, gece raporları" @onclick="() => MenuAsync(EnterGrowthAsync)">[GELİŞİM ›]</button>
+                    <button role="menuitem" class="bm-item mode" title="Gelişim: Ultron ne kadar öğreniyor, haftalık grafikler, gece raporları" @onclick="() => MenuAsync(EnterGrowthAsync, goHome: false)">[GELİŞİM ›]</button>
                 </nav>
             }
         </div>
@@ -1079,9 +1079,12 @@
     /// <summary>Logo menüsü açık mı (üst çubukta sadece DERS ve İŞ; diğer komutlar burada).</summary>
     private bool _menuOpen;
 
-    private async Task MenuAsync(Func<Task> action)
+    /// <summary>Paneller ana ekranın parçası: İş/Okul/Gelişim'in arkasında kalmasın diye önce ana ekrana dönülür.</summary>
+    private async Task MenuAsync(Func<Task> action, bool goHome = true)
     {
         _menuOpen = false;
+        if (goHome)
+            await GoAsync("ana");
         await action();
     }
 
